@@ -1,0 +1,58 @@
+bundle agent va_package_gem_manage(desired, gem, options, promisee)
+# @depends  va_log_promise va_classes_generic va_gem va_paths
+# @brief    Ensure that 'gem' is in 'desired' state
+#
+# @classes  va_package_gem_${desired}_${cgem}_(kept|repaired|failed)
+#
+# NOTE: cgem is canonify("${gem}")
+#
+# @param desired    Desired state of gem: add, delete, update, verify
+# @param gem        Name of the gem
+# @param options    Options to be passed to the gem command
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Ensure desired state for gem";
+    "tags"     slist => { "packages", "gem", "vacana" };
+
+  vars:
+
+    "cgem"
+      handle => "va_package_gem_manage_vars_cgem",
+      string => canonify("${gem}");
+
+    "class_prefix"
+      comment    => "Prefix promise outcome classes with this",
+      depends_on => { "va_package_gem_manage_vars_cgem" },
+      string     => canonify("va_package_gem_${desired}_${cgem}");
+
+  classes:
+
+    "ruby_gem_present"
+      comment => "Check if the gem package manager is present",
+      and     => {
+        fileexists("${va_paths.path[gem]}"),
+        isexecutable("${va_paths.path[gem]}"),
+      };
+
+  packages:
+
+    ruby_gem_present::
+
+      "${gem}" -> { "${promisee}" }
+        comment        => "${desired} ${gem} via ruby's gem package manager",
+        handle         => "va_package_gem_manage_packages_gem",
+        action         => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"
+        ),
+        classes        => va_classes_generic("${class_prefix}"),
+        package_policy => "${desired}",
+        package_method => va_gem("${options}");
+
+  reports:
+
+    !ruby_gem_present::
+    
+      "Ruby gem package manager not present or not executable!";
+}

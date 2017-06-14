@@ -1,0 +1,117 @@
+bundle common va_c
+{
+  meta:
+
+    "purpose" string => "Common classes and variables for vacana lib.";
+    "tags" slist     => { "common", "vacana" };
+
+  vars:
+
+    "va_logs"
+      comment => "Directory where reports/logs are stored, that are created by vacana",
+      string  => "/var/cfengine/vacana/promises";
+
+    "promise_log"
+      comment => "File to log promises to without their outcome",
+      string  => "${va_logs}/promises.log";
+
+    "outcome_log"
+      comment => "File to log promises with their outcome, used by promises_outcome bundle",
+      string  => "${va_logs}/promises_outcome.log";
+
+    "classes_log"
+      comment => "File to log defined classes to",
+      string  => "${va_logs}/classes.log";
+
+    "client_logs"
+      comment => "Directory where to put the client logs on the policy hub",
+      string  => "${va_logs}/clients";
+
+    "log_delim"
+      comment => "Delimiter used in promise logs",
+      string  => ";\s*";
+
+    "max_num"
+      comment => "Maximum number of lines to read from a file",
+      int     => "300";
+
+    "max_bytes"
+      comment => "Maximum number of bytes to read from a file",
+      string  => "2M";
+}
+
+
+###############################################################################
+#
+# actions
+#
+###############################################################################
+
+# TODO: Add bundle to create log files, if they don't exist, and if they do
+#	remove them.
+
+body action va_log_promise(class_prefix, handle, promiser, promisee)
+# @brief  Log a string to va_c.promise_log with given params.
+# @param  class_prefix  Class prefix to determine promise outcome
+# @param  handle        Promise handle
+# @param  promiser      Promiser of the promise
+# @param  promisee      Who makes the promise
+{
+  ifelapsed => "1";
+
+  log_kept     => "${va_c.promise_log}";
+  log_repaired => "${va_c.promise_log}";
+  log_failed   => "${va_c.promise_log}";
+  log_string   => "${class_prefix}; ${handle}; ${promiser}; ${promisee}";
+}
+
+
+###############################################################################
+#
+# classes
+#
+###############################################################################
+
+body classes va_classes_generic(x)
+# @brief  Almost like that stdlib one, but only one class for each possible outcome
+#
+# NOTE: Less classes means less cpu and/or memory consumption and faster
+#       cf-agent execution
+#
+# @param x  Prefix for promise outcome classes
+{
+  promise_repaired  => { "${x}_repaired" };
+  repair_failed     => { "${x}_failed" };
+  repair_denied     => { "${x}_failed" };
+  repair_timeout    => { "${x}_failed" };
+  promise_kept      => { "${x}_kept" };
+}
+
+body classes va_classes_command(prefix, kept, repaired, failed)
+# @brief  Define promise outcomes with 'prefix' prefixed to _kept|repaired|failed
+#
+# NOTE: Use this for commands promises
+#
+# @param prefix     Prefix for outcome classes
+# @param kept       Command returncodes to indicate that promise was kept
+# @param repaired   Command returncodes to indicate that promise was repaired
+# @param failed     Command returncodes to indicate that promise failed
+{
+  promise_repaired      => { "${prefix}_repaired" };
+  repair_failed         => { "${prefix}_failed" };
+  repair_denied         => { "${prefix}_failed" };
+  repair_timeout        => { "${prefix}_failed" };
+  promise_kept          => { "${prefix}_kept" };
+  kept_returncodes      => { @{kept} };
+  repaired_returncodes  => { @{repaired} };
+  failed_returncodes    => { @{failed} };
+}
+
+body classes va_classes_cmd_kept(prefix, kept)
+{
+  kept_returncodes  => { @{kept} };
+  promise_kept      => { "${prefix}_kept" };
+  repair_failed     => { "${prefix}_failed" };
+  repair_denied     => { "${prefix}_failed" };
+  repair_timeout    => { "${prefix}_failed" };
+}

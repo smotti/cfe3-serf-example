@@ -1,0 +1,66 @@
+bundle agent va_package_manage(desired, package, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Ensure that 'package' has 'desired' state
+#
+# @classes  va_package_${desired}_${cpackage}_(kept|repaired|failed)
+#
+# NOTE: cpackage is canonify("${package}")
+#
+# @param desired    Desired state of the package: add, delete, update,
+#                   addupate, reinstall, patch, verify
+# @param package    Name of the package to put into desired state
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Ensure desired state for package";
+    "tags"     slist => { "packages", "vacana" };
+
+  vars:
+
+    "class_prefix"
+      comment => "Prefix promise outcome classes with this",
+      string  => canonify("va_package_${desired}_${package}");
+
+  packages:
+
+    debian::  
+      "${package}" -> { "${promisee}" }
+        comment        => "${desired} ${package} via package manager",
+        handle         => "va_package_add_packages_manage",
+        action         => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes        => va_classes_generic("${class_prefix}"),
+        package_policy => "${desired}",
+        package_module => apt_get;
+
+    redhat::  
+      "${package}" -> { "${promisee}" }
+        comment        => "${desired} ${package} via package manager",
+        handle         => "va_package_add_packages_manage",
+        action         => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes        => va_classes_generic("${class_prefix}"),
+        package_policy => "${desired}",
+        package_module => yum;
+
+    suse::  
+      "${package}" -> { "${promisee}" }
+        comment        => "${desired} ${package} via package manager",
+        handle         => "va_package_add_packages_manage",
+        action         => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes        => va_classes_generic("${class_prefix}"),
+        package_policy => "${desired}",
+        package_method => zypper;
+
+    !debian.!redhat.!suse::  
+      "${package}" -> { "${promisee}" }
+        comment        => "${desired} ${package} via package manager",
+        handle         => "va_package_add_packages_add",
+        action         => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes        => va_classes_generic("${class_prefix}"),
+        package_policy => "${desired}",
+        package_method => generic;
+}

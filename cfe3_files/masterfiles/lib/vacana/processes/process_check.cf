@@ -1,0 +1,27 @@
+bundle agent va_process_check(proc_regex, restart_class, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Check if a process that matches 'proc_regex' exists in the
+#           systems processes table.
+#
+# @classes  restart_class
+#
+# @param proc_regex     Unachored process regex to use to find a match
+# @param restart_class  The restart_class to define if nothing is found for
+#                       'proc_regex'
+# @param promisee       A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Check if a process is running that matches given regex";
+    "tags"     slist => { "processes", "vacana" };
+
+  processes:
+
+    "${proc_regex}"
+      comment       => "Check process table for a match with ${proc_regex}",
+      handle        => "va_process_check_processes_proc_regex",
+      action        => va_log_promise(
+        "${restart_class}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes       => va_classes_generic("${restart_class}"),
+      restart_class => "${restart_class}"; 
+}

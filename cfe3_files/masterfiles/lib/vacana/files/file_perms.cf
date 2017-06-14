@@ -1,0 +1,35 @@
+bundle agent  va_file_perms(file, mode, owner, group, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Set permissions of 'file' to 'mode', 'owner' and 'group'
+#
+# @classes  va_file_perms_${cfile}_(kept|repaired|failed)
+#
+# NOTE: cfile is canonify("${file}")
+#
+# @param file       The file for which to set the permissions
+# @param mode       The access mode of the file
+# @param owner      The owner of the file
+# @param group      The group the file shall belong to
+# @param promisee   A promisee for this promise
+{
+  meta:
+  
+    "purpose" string => "Set permissions for the given file.";
+    "tags"     slist => { "files", "vacana" };
+
+  vars:
+
+    "class_prefix"
+      comment => "Prefix promise outcome classes with this",
+      string  => canonify("va_file_perms_${file}");
+
+  files:
+  
+    "${file}" -> { "${promisee}" }
+      comment => "Set mode ${mode}, owner ${owner} and group ${group} for ${file}",
+      handle  => "va_file_perms_files_set_perms",
+      action  => va_log_promise(
+        "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes => va_classes_generic("${class_prefix}"),
+      perms   => mog("${mode}", "${owner}", "${group}");
+}

@@ -1,0 +1,41 @@
+bundle agent va_package_check_present(package)
+# @depends
+# @brief    Check if given package is present, if so package_present class is
+#           defined
+#
+# @classes  ${cpackage}_present
+#
+# NOTE: cpackage is canonify("${package}")
+#
+# @param package    The name of the package to look for
+{
+  meta:
+
+    "purpose" string => "Check if package is present and set a class if it is";
+    "tags"     slist => { "packages", "vacana" };
+
+  vars:
+
+    "cpackage" 
+      comment => "Canonified version of the package name",
+      string  => canonify("${package}");
+    "packages"
+      comment => "Search for the package",
+      data    => packagesmatching("${package}", ".*", ".*", ".*");
+    "i"
+      comment => "Index for packages data struct",
+      slist   => getindices("packages");
+    "length"
+      comment => "Number of matched packages",
+      int     => length("i");
+
+  classes:
+
+    "matched_packages" expression => isgreaterthan("${length}", "0");
+
+    matched_packages::
+
+      "${cpackage}_present" 
+        scope      => "namespace",
+        expression => "any";
+}

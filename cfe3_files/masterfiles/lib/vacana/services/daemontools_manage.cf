@@ -1,0 +1,86 @@
+bundle agent va_daemontools(desired, service, promisee)
+{
+  meta:
+
+    "purpose" string => "Ensure service is in desired state";
+    "tags"     slist => { "services", "daemontools", "vacana"};
+
+  vars:
+
+    "csvc"         string => canonify("${service}");
+    "class_prefix" string => canonify("va_daemontools_${desired}_${csvc}");
+
+  services:
+
+    "${service}" -> { "${promisee}" }
+      comment        => "Ensure state ${desired} for ${service}",
+      handle         => "va_daemontools_services_ensure_state",
+      action         => va_log_promise(
+        "${class_prefix}", "${this.bundle}", "${this.promiser}", "${promisee}"),
+      classes        => va_classes_generic("${class_prefix}"),
+      service_policy => "${desired}",
+      service_method => daemontools;
+}
+
+body service_method daemontools
+{
+  service_bundle => djb_daemontools("${this.promiser}", "${this.service_policy}");
+}
+
+bundle agent djb_daemontools(service, state)
+{
+  meta:
+
+    "purpose" string => "Service bundle for DJB's daemontools";
+
+  vars:
+
+    !windows::
+
+      "dir_services" string => "/service";
+      "call_svc"     string => "${va_paths.path[dt_svc]}";
+      "call_svstat"  string => "${va_paths.path[dt_svstat]}";
+      "full_service" string => "${dir_services}/${service}";
+
+      "svstat_output" string => execresult(
+        "${call_svstat} ${full_service}", "useshell"
+      );
+      "parsed_output"   data => data_regextract(
+        "${full_service}: (?<state>[a-z]*) .*", "${svstat_output}"
+      );
+      "service_state" string => "${parsed_output[state]}";
+
+    any::
+
+      "csvc"         string => canonify("${service}");
+
+  classes:
+
+    "${state}" expression => "any";
+
+    "service_${service_state}" expression => "any";
+
+    "request_start"   expression => strcmp("start", "${state}");
+    "request_stop"    expression => strcmp("stop", "${state}");
+    "request_reload"  expression => strcmp("reload", "${state}");
+    "request_restart" expression => strcmp("restart", "${state}");
+
+    "action_start"   expression => "request_start.service_down";
+    "action_stop"    expression => "request_stop.service_up";
+    "action_restart" expression => "request_restart.(service_up|service_down)";
+
+  commands:
+
+    action_start|action_restart.service_down::
+      
+      "${call_svc} -o ${full_service}";
+
+    action_stop::
+
+      "${call_svc} -t ${full_service}";
+
+    action_restart.service_up::
+      
+      "${call_svc} -t ${full_service}";
+      "${call_svc} -o ${full_service}";
+}

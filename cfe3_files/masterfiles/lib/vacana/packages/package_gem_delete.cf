@@ -1,0 +1,30 @@
+bundle agent va_package_gem_delete(gem, options, promisee)
+# @depends  va_package_gem_manage
+# @brief    Ensure that 'gem' is not present on the system
+#
+# @classes  va_package_gem_delete_${cgem}_(kept|repaired|failed)
+#
+# NOTE: cgem is canonify("${gem}")
+#
+# @param gem        Name of the gem to delete from the system
+# @param options    Options passed to the gem command
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Delete given gem via ruby's gem package manager to the system";
+    "tags"     slist => { "packages", "gem", "vacana" };
+
+  vars:
+
+    "cgem" string => canonify("${gem}");
+
+  methods:
+
+    "va_package_gem_add_${cgem}"
+      comment   => "Delete ${gem} to the system via ruby's gem package manager",
+      handle    => "va_package_gem_delete_methods_package_gem_manage",
+      usebundle => va_package_gem_manage(
+        "delete", "${gem}", "${options}", "${promisee}"
+      );
+}

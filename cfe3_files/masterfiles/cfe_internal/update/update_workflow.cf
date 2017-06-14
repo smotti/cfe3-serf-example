@@ -1,0 +1,109 @@
+bundle common cfe_internal_update_workflow_g
+{
+  vars:
+
+    "inputs" slist => {
+      "${this.promise_dirname}/common.cf",
+      "${this.promise_dirname}/update_from_repository.cf",
+      "${this.promise_dirname}/update_policy.cf",
+      "${this.promise_dirname}/update_policy_local.cf", };
+}
+
+body file control
+{
+  inputs => { @{cfe_internal_update_workflow_g.inputs} };
+}
+
+
+bundle agent cfe_internal_update_workflow
+{
+  files:
+
+    "${sys.inputdir}/tools/${def.tools}"
+      comment => "Ensure tools are executable",
+      perms   => mog("700", "root", "root");
+
+  methods:
+
+    cfengine_internal_masterfiles_update.am_policy_hub::
+      "update masterfiles from remote repo"
+        usebundle => cfe_internal_update_from_repository;
+
+    am_policy_hub::
+      "Build new manifest.txt"
+        comment   => "Build/Update the manifest.txt",
+        handle    => "cfe_internal_update_workflow_methods_build_manifest",
+        usebundle => cfe_internal_update_build_manifest;
+      "update policies by local copying files"
+        depends_on => { "cfe_internal_update_workflow_methods_build_manifest" },
+        usebundle  => cfe_internal_update_policy_local;
+
+    !am_policy_hub:: 
+      "update policies"
+        usebundle => cfe_internal_update_policy;
+
+    any::
+      "Start processes"
+        usebundle  => cfe_internal_update_start_service;
+}
+
+
+bundle agent cfe_internal_update_build_manifest
+{
+  meta:
+
+    "purpose" string => "Run cf-manifest to update manifest.txt";
+
+  vars:
+
+    "cmd"
+      comment => "Command to execute to create the manifest",
+      string  => "${sys.workdir}/modules/cf-manifest";
+
+    DEBUG.updated_manifest::
+
+      "hash"
+        string => file_hash(
+          "${sys.masterdir}/${update_def.inputs_manifest}", "md5");
+
+  commands:
+
+    am_policy_hub::
+      "${cmd}"
+        comment => "Create new manifest.txt",
+        classes => if_repaired("updated_manifest"),
+        contain => in_shell;
+
+  reports:
+
+    DEBUG.updated_manifest::
+
+      "Updated manifest.txt, new hash is: ${hash}"
+        if => isvariable("hash");
+}
+
+
+bundle agent cfe_internal_update_start_service
+{
+  meta:
+
+    "purpose" string => "Ensure cfengine is started/restarted";
+
+  services:
+
+    !restart_cfengine::
+      "${update_def.cfengine_service}"
+        classes        => if_repaired("restarted_cfengine"),
+        service_policy => "start";
+
+    restart_cfengine::
+      "${update_def.cfengine_service}"
+        classes        => if_repaired("restarted_cfengine"),
+        service_policy => "restart";
+
+  reports:
+
+    DEBUG.restarted_cfengine::
+
+      "DEBUG: Restarted CFEngine";
+}

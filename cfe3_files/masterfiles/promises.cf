@@ -1,0 +1,214 @@
+###############################################################################
+#
+#   promises.cf - Basic Policy for CFEngine
+#
+###############################################################################
+
+body common control
+
+{
+
+      bundlesequence => {
+                        # Common bundle first (Best Practice)
+                          inventory_control,
+                          @(inventory.bundles),
+                          def,
+
+                          # Vacana reporting (PRE)
+                          va_pre_promises_report,
+
+                          # autorun system
+                          services_autorun,
+                          @(services_autorun.bundles),
+
+                         # Agent bundle
+                          cfe_internal_management,   # See cfe_internal/CFE_cfengine.cf
+                          main,
+
+                          # Ensure serf cluster membership before anything else
+                          serf_member,
+
+                          # Example policies
+                          example, # Need to call the explicetly to merge with the serf memberlist
+                          @{example.bundles},
+
+                          # Vacana reporting (POST)
+                          va_post_promises_report,
+      };
+
+      inputs => {
+                 # File definition for global variables and classes
+                  @(cfengine_controls.def_inputs),
+
+                # Inventory policy
+                  @(inventory.inputs),
+
+                 # CFEngine internal policy for the management of CFEngine itself
+                  @(cfe_internal_inputs.inputs),
+
+                 # Control body for all CFEngine robot agents
+                  @(cfengine_controls.inputs),
+
+                 # COPBL/Custom libraries.  Eventually this should use wildcards.
+                  @(cfengine_stdlib.inputs),
+
+                  "lib/vacana/lib.cf",
+                  "policies/serf_member.cf",
+                  "policies/example.cf",
+
+                  # autorun system
+                  @(services_autorun.inputs),
+
+                  "services/main.cf",
+      };
+
+      version => "CFEngine Promises.cf 3.8.2";
+
+      # From 3.7 onwards there is a new package promise implementation using package
+      # modules in which you MUST provide package modules used to generate
+      # software inventory reports. You can also provide global default package module 
+      # instead of specifying it in all package promises.
+      #debian|redhat::
+      #    package_module => $(package_module_knowledge.platform_default);
+
+      # Uncomment to connect to the hub using latest protocol.
+      #protocol_version => "latest";
+
+      #   goal_categories => { "goals", "targets", "milestones" };
+      #   goal_patterns   => { "goal_.*", "target.*","milestone.*" };
+}
+
+bundle common inventory
+# @brief Set up inventory inputs
+#
+# This bundle creates the inputs for inventory bundles.
+#
+# Inventory bundles are simply common bundles loaded before anything
+# else in promises.cf
+#
+# Tested to work properly against 3.5.x
+{
+  vars:
+      # This list is intended to grow as needed
+    debian::
+      "inputs" slist => { "inventory/any.cf", "inventory/linux.cf", "inventory/lsb.cf", "inventory/debian.cf", "inventory/os.cf" };
+      "bundles" slist => { "inventory_control", "inventory_any", "inventory_autorun", "inventory_linux", "inventory_lsb", "inventory_debian", "inventory_os" };
+
+  reports:
+    verbose_mode::
+      "$(this.bundle): loading inventory module '$(inputs)'";
+}
+
+      #
+
+bundle common cfe_internal_inputs
+{
+  vars:
+    any::
+
+      "input[cfe_internal_management]"
+        string => "cfe_internal/CFE_cfengine.cf",
+        comment => "This policy activates internal managment policies
+                    for both core and enterprise";
+
+      "input[core_main]"
+        string => "cfe_internal/core/main.cf",
+        comment => "This policy activates other core policies";
+
+      "input[core_limit_robot_agents]"
+        string => "cfe_internal/core/limit_robot_agents.cf",
+        comment => "The policy here ensures that we don't have too many
+                    cf-monitord or cf-execd processes";
+
+      "input[core_log_rotation]"
+        string => "cfe_internal/core/log_rotation.cf",
+        comment => "This policy ensures that various cfengine log files
+                    do not grow without bound and fill up the disk";
+
+      "input[core_host_info_report]"
+        string => "cfe_internal/core/host_info_report.cf",
+        comment => "This policy produces a text based host info report
+                    and serves as a functional example of using mustache templates";
+
+      "input[cfengine_internal_core_watchdog]"
+        string => "cfe_internal/core/watchdog/watchdog.cf",
+        comment => "This policy configures external watchdogs to ensure that
+                    cf-execd is always running.";
+
+    any::
+      "inputs" slist => getvalues("input");
+}
+
+bundle common cfengine_stdlib
+{
+  vars:
+    "inputs" slist => { "$(sys.local_libdir)/stdlib.cf" };
+
+  reports:
+    verbose_mode::
+      "$(this.bundle): defining inputs='$(inputs)'";
+}
+
+bundle common cfengine_controls
+{
+  vars:
+    "def_inputs"
+      slist => {
+                  "controls/def.cf",
+                  "controls/def_inputs.cf",
+                },
+      comment => "We strictly order the def inputs because they should be parsed first";
+
+    "input[cf_agent]"
+      string => "controls/cf_agent.cf",
+      comment => "Agent control options";
+
+    "input[cf_execd]"
+      string => "controls/cf_execd.cf",
+      comment => "Executor (scheduler) control options";
+
+    "input[cf_monitord]"
+      string => "controls/cf_monitord.cf",
+      comment => "Monitor/Measurement control options";
+
+    "input[cf_serverd]"
+      string => "controls/cf_serverd.cf",
+      comment => "Server control options";
+
+    "input[cf_runagent]"
+      string => "controls/cf_runagent.cf",
+      comment => "Runagent (remote activation request) control options";
+
+    any::
+      "inputs" slist => getvalues(input);
+
+  reports:
+    DEBUG|DEBUG_cfengine_controls::
+      "DEBUG $(this.bundle)";
+        "$(const.t)defining inputs='$(inputs)'";
+}
+
+bundle common services_autorun
+{
+  vars:
+    !services_autorun::
+      "inputs" slist => { };
+      "found_inputs" slist => {};
+      "bundles" slist => { "services_autorun" }; # run self
+
+    !cfengine_3_7::
+      # Both 3.6 and 3.8+ can use local_libdir
+      # 3.6 will use the split library in the version specific path
+      # 3.8+ will use the common lib as it supports the @if macro
+      "inputs" slist => { "$(sys.local_libdir)/autorun.cf" };
+      "found_inputs" slist => lsdir("$(this.promise_dirname)/services/autorun", ".*\.cf", "true");
+      "bundles" slist => { "autorun" }; # run loaded bundles
+
+  reports:
+    DEBUG|DEBUG_services_autorun::
+      "DEBUG $(this.bundle): adding input='$(inputs)'"
+        ifvarclass => isvariable("inputs");
+
+      "DEBUG $(this.bundle): adding input='$(found_inputs)'"
+        ifvarclass => isvariable("found_inputs");
+}

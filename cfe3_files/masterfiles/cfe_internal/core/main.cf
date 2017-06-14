@@ -1,0 +1,29 @@
+bundle agent cfe_internal_core_main
+{
+  methods:
+    any::
+
+#   NB! On a container host this may kill CFEngine processes inside containers.
+#       See https://dev.cfengine.com/issues/6906
+
+      "any" usebundle => cfe_internal_limit_robot_agents,
+        handle => "cfe_internal_management_limit_cfe_agents",
+        comment => "Manage CFE processes";
+
+      "any"
+        usebundle => cfe_internal_log_rotation,
+        handle => "cfe_internal_management_log_rotation",
+        comment => "Rotate CFEngine logs so we dont fill the disk";
+
+    cfe_internal_core_watchdog_disabled::
+
+      "Disable Core Watchdog"
+        usebundle => cfe_internal_core_watchdog("disabled");
+
+    cfe_internal_core_watchdog_enabled::
+
+      "Enable Core Watchdog"
+        usebundle => cfe_internal_core_watchdog("enabled");
+
+
+}

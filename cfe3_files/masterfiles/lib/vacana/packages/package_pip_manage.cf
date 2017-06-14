@@ -1,0 +1,51 @@
+bundle agent va_package_pip_manage(desired, module, flags, pip_path, promisee)
+# @depends  va_log_promise va_classes_generic va_pip va_paths
+# @brief    Ensure that 'module' is in 'desired' state
+#
+# @classes  va_package_pip_${desired}_${cmodule}_(kept|repaired|failed)
+#
+# NOTE: cmodule is canonify("${gem}")
+#
+# @param desired    Desired state of module: add, delete, (add)update, verify
+# @param module     Name of the module
+# @param flags      Command flags to be passed to the pip command
+# @param pip_path   Path to the pip executable to use
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Ensure desired state of python module via pip";
+    "tags"     slist => { "packages", "pip", "python", "module", "vacana" };
+
+  vars:
+
+    "class_prefix"
+      comment => "Prefix promise outcome classes with this",
+      string  => canonify("va_package_pip_${desired}_${module}");
+
+  classes:
+
+    "python_pip_present"
+      comment => "Check if the python package manager pip is present",
+      and     => { fileexists("${pip_path}"), isexecutable("${pip_path}"), };
+
+  packages:
+
+    python_pip_present::
+
+      "${module}" -> { "${promisee}" }
+        comment        => "${desired} ${module} via python pip",
+        handle         => "va_package_pip_manage_packages_module",
+        action         => va_log_promise(
+          "${class_prefix}", "${this.bundle}", "${this.promiser}", "${promisee}"
+        ),
+        classes        => va_classes_generic("${class_prefix}"),
+        package_policy => "${desired}",
+        package_method => va_pip("${pip_path}", "${flags}");
+
+  reports:
+
+    !python_pip_present::
+
+      "Python package manager pip not present or not executable!";
+}

@@ -1,0 +1,43 @@
+bundle agent va_dir_remove(dir, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Remove a 'dir' from host
+#
+# @classes  va_dir_remove_${cdir}_(kept|repaired|failed)
+#
+# NOTE: cdir is canonify("${dir}")
+#
+# @param dir       The dir to remove
+# @param promisee   A promisee for this promise
+{
+  meta:
+    
+    "purpose" string => "Remove dir from disk";
+    "tags"     slist => { "files", "vacana" };
+
+  vars:
+    
+    "class_prefix"
+      comment => "Prefix for promise outcome classes",
+      string  => canonify("va_dir_remove_${dir}");
+
+  files:
+
+    "${dir}" -> { "${promisee}" }
+      comment => "Remove dir content of ${dir}",
+      handle  => "va_dir_remove_dir_remove_content",
+#      action  => va_log_promise(
+#        "${class_prefix}", "${this.promiser}", "${promisee}"),
+#      classes      => va_classes_generic("${class_prefix}"),
+      depth_search => recurse_with_base("inf"),
+      file_select  => all,
+      delete       => tidy;
+
+    "${dir}" -> { "${promisee}" }
+      comment    => "Remove dir ${dir}",
+      handle     => "va_dir_remove_dir_remove_base",
+      depends_on => { "va_dir_remove_dir_remove_content" },
+      action     => va_log_promise(
+        "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes => va_classes_generic("${class_prefix}"),
+      delete  => tidy;
+}

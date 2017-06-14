@@ -1,0 +1,40 @@
+bundle agent va_command_in_shell_and_silent(command, kept_codes, repaired_codes, failed_codes, promisee)
+# @depends  va_log_promise va_classes_command
+# @brief    Execute 'command' within a shell and suppresing its output
+#
+# @classes  va_command_in_shell_and_silent_${ccommand}_(kept|repaired|failed)
+#
+# NOTE: ccommand is canonify("${command}")
+#
+# @param command          Command to execute
+# @param kept_codes       A list of returncodes that indicate the promise was kept
+# @param repaired_codes   A list or returncodes that indicate the promise was repaired
+# @param failed_codes     A list of returncodes that indicate the promise failed
+# @param promisee         A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Execute given command in default shell silently";
+    "tags"     slist => { "commands", "vacana" };
+
+  vars:
+
+    "class_prefix"
+      comment => "Prefix for promise outcome classes",
+      string  => canonify("va_command_in_shell_and_silent_${command}");
+
+  commands:
+
+    "${command}" -> { "${promisee}" }
+      comment => "Execute ${command}",
+      handle  => "va_command_in_shell_and_silent_commands_execute",
+      action  => va_log_promise(
+        "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes => va_classes_command(
+        "${class_prefix}",
+        @{kept_codes},
+        @{repaired_codes},
+        @{failed_codes}),
+      module  => "false",
+      contain => in_shell_and_silent;
+}

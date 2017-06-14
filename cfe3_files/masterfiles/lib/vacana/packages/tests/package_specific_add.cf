@@ -1,0 +1,55 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+
+  bundlesequence => { "test_va_package_specific_add" };
+}
+
+# TODO: Add a test that uses a .deb file
+bundle agent test_va_package_specific_add
+{
+  meta:
+
+    "purpose" string => "Test va_package_specific_add, va_package_specific_manage and va_package_delete";
+    "tags"     slist => { "packages", "test", "vacana" };
+
+  vars:
+
+    "promisee" string => "test_va_package_specific_add";
+    "package"  string => "mc";
+    "version"  string => "3:4.8.3-10";
+    "arch"     string => "amd64";
+
+    "cpackage" string => canonify("${package}");
+
+  methods:
+
+    "test_va_package_specific_add"
+      comment   => "Add specific package to system",
+      handle    => "test_va_package_specific_add_methods_add",
+      usebundle => va_package_specific_add(
+        "${package}", "${version}", "${arch}", "${promisee}");
+
+    "test_va_package_specific_cleanup"
+      comment   => "Cleanup by deleting package",
+      handle    => "test_va_package_specific_add_methods_cleanup",
+      usebundle => va_package_delete("${package}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_package_specific_add"
+        ifvarclass => "va_package_specific_add_${cpackage}_repaired.va_package_delete_${package}_repaired";
+
+    any::
+
+      "FAIL: test_va_package_specific_add - Failed to add package ${package}"
+        ifvarclass => "va_package_specific_add_${cpackage}_failed";
+
+      "FAIL: test_va_package_specific_add - Failed to cleanup"
+        ifvarclass => "va_package_delete_${cpackage}_failed";
+}

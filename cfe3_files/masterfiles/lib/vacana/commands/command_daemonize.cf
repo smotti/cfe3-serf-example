@@ -1,0 +1,23 @@
+bundle agent va_command_daemonize(command, promisee)
+{
+  meta:
+
+    "purpose" string => "Run the command as a daemon";
+    "tags"     slist => { "commands", "vacana" };
+
+  vars:
+
+    "class_prefix" string => canonify("va_command_daemonize_${commands}");
+
+  commands:
+
+    !windows::
+
+      "exec 1>&-; exec 2>&-; ${command} &" -> { "${promisee}" }
+        comment => "Daemonize ${command}",
+        handle  => "va_command_daemonize_commands_execute",
+        action  => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}" , "${promisee}"),
+        module  => "false",
+        contain => in_shell;
+}

@@ -1,0 +1,46 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+
+  bundlesequence => { "test_va_package_add" };
+}
+
+bundle agent test_va_package_add
+{
+  meta:
+
+    "purpose" string => "Test bundle va_package_add";
+    "tags"     slist => { "packages", "test", "vacana" };
+
+  vars:
+
+    "promisee" string => "test_va_package_add";
+    "package"  string => "mc";
+
+    "cpackage" string => canonify("${package}");
+
+  methods:
+
+    "test_va_package_add"    usebundle => va_package_add(
+      "${package}", "${promisee}");
+    "test_va_package_delete" usebundle => va_package_delete(
+      "${package}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_package_add"
+        ifvarclass => "va_package_add_${cpackage}_repaired.va_package_delete_${cpackage}_repaired";
+
+    any::
+
+      "FAIL: test_va_package_add - Failed to add package ${package}"
+        ifvarclass => "va_package_add_${cpackage}_failed";
+
+      "FAIL: test_va_package_add - Failed to clean up"
+        ifvarclass => "va_package_delete_${cpackage}_failed";
+}

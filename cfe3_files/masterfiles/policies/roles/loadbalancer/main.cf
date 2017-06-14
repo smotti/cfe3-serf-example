@@ -1,0 +1,114 @@
+bundle agent example_loadbalancer
+{
+  meta:
+
+    "purpose" string => "Ensure a selected loadbalancer is present, configured 
+      and started";
+
+  methods:
+
+    "loadbalancer nginx"
+      comment   => "Use nginx as loadbalancer",
+      usebundle => example_loadbalancer_nginx;
+}
+
+bundle agent example_loadbalancer_nginx
+{
+  meta:
+
+    "purpose" string => "Ensure nginx is present, configured as lb and started";
+
+  vars:
+
+    debian::
+
+      "package"
+        string  => "nginx-light";
+      "service"
+        string  => "nginx";
+      "process"
+        string  => ".*/usr/sbin/nginx.*";
+      "nginx_conf"
+        data => 
+          '{"src": "${def.local_files}/loadbalancer/nginx/etc_nginx_nginx_conf",
+            "dest": "/etc/nginx/nginx.conf"}';
+      "nginx_lb_conf"
+        data => 
+          '{"src": "${def.local_files}/loadbalancer/nginx/etc_nginx_sites_available_lb.mus",
+             "dest": "/etc/nginx/sites-available/lb",
+             "link": "/etc/nginx/sites-enabled/lb",
+             "method": "mustache"}';
+      "cngx_conf"
+        string  => canonify("${nginx_conf[dest]}");
+      "cngx_lb_conf"
+        string  => canonify("${nginx_lb_conf[link]}");
+      "csvc"
+        string  => canonify("${service}");
+      "cpkg"
+        string  => canonify("${package}");
+
+      "app_srv_alive"
+        data => mergedata("example.cfg[tag_role_app_alive]");
+      "app_srv_alive_str"
+        string => format("'%S'", app_srv_alive);
+      "filter"
+        string => "'.[] | {ips: [.ip]}'";
+      "app_servers"
+        data => parsejson(
+          execresult("echo ${app_srv_alive_str} | ${def.jq} ${filter}", "useshell"));
+      "app_servers_str"
+        string => format("%S", app_servers);
+
+  classes:
+
+    "restart_loadbalancer"
+      comment => "Define if any config file changed",
+      or      => {
+        classmatch(".*_file_copy_.*_${cngx_conf}_repaired"),
+        classmatch(".*_file_sym_link_.*_${cngx_lb_conf}_repaired"),
+      };
+
+  methods:
+
+    debian::
+
+      "ensure nginx presence is verified"
+        comment   => "Check if package is already present, to avoid expensive apt-get call",
+        usebundle => va_package_verify("${package}", "${this.bundle}");
+      "ensure nginx is present"
+        comment    => "Ensure ${package} is present",
+        ifvarclass => "va_package_verify_${cpkg}_failed",
+        usebundle  => va_package_add("${package}", "${this.bundle}");
+      "ensure nginx.conf"
+        usebundle => va_file_copy_local(
+          ${nginx_conf[src]}, ${nginx_conf[dest]}, ${this.bundle});
+      "ensure loadbalancer config"
+        usebundle => va_file_edit_template_with_date(
+          ${nginx_lb_conf[src]},
+          ${nginx_lb_conf[dest]},
+          ${nginx_lb_conf[method]},
+          @{app_servers}, 
+          ${this.bundle}
+        );
+      "ensure default vhost is disabled"
+        comment   => "We don't require the default vhost",
+        classes   => if_repaired("restart_loadbalancer"),
+        usebundle => va_file_remove(
+          "/etc/nginx/sites-enabled/default", "${this.bundle}"
+        );
+      "ensure nginx is started"
+        usebundle => va_process_check(
+          "${process}", "restart_loadbalancer", "${this.bundle}"
+        );
+    
+    restart_loadbalancer::
+
+      "ensure nginx is restarted"
+        usebundle => va_service_restart("${service}", "${this.bundle}");
+
+  reports:
+
+    DEBUG::
+      "DEBUG: app servers: ${app_srv_alive_str}";
+      "DEBUG: app server ips: ${app_servers_str}";
+}

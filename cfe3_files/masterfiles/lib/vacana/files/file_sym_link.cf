@@ -1,0 +1,33 @@
+bundle agent va_file_sym_link(target, link_name, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Create a symbolic/soft link from 'link_name' to 'target'
+#
+# @classes  va_file_sym_link_${clink_name}_(kept|repaired|failed)
+#
+# NOTE: clink_name is canonify("${lick_name}")
+#
+# @param target     The link target
+# @param link_name  Name of the link to create
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Create a symbolic file link";
+    "tags"     slist => { "files", "vacana" };
+
+  vars:
+
+    "class_prefix"
+      comment => "Prefix for promise outcome classes",
+      string  => canonify("va_file_sym_link_${link_name}");
+
+  files:
+
+    "${link_name}" -> { "${promisee}" }
+      comment   => "Create symbolic link ${link_name} that points to ${target}",
+      handle    => "va_file_sym_link_files_create_link",
+      action    => va_log_promise(
+        "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes   => va_classes_generic("${class_prefix}"),
+      link_from => ln_s("${target}");
+}

@@ -1,0 +1,43 @@
+bundle agent va_package_add_release(package, release, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Add/Update 'package' of a specific 'release'
+#
+# @classes  va_package_add_release_${cpackage}_(kept|repaired|failed)
+#
+# NOTE: cpackage is canonify("${package}")
+# NOTE: This only works on debian and ubuntu
+#
+# @param package    Name of the package to add to the system
+# @param release    Release to use (i.e. under debian/ubuntu testing,
+#                   wheezy-backports, ...)
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Add given package (of specific release) via package manager";
+    "tags"     slist => { "packages", "vacana" };
+
+  vars:
+
+    "class_prefix" string => canonify("${this.bundle}_${package}");
+
+  packages:
+
+    debian::
+
+      "${package}"
+        handle => "va_package_add_release_packages_add_package",
+        action => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${this.bundle}"
+        ),
+        classes         => va_classes_generic("${class_prefix}"),
+        package_policy  => "addupdate",
+        package_version => "999999999",
+        package_method  => apt_get_release("${release}");
+
+  reports:
+
+    !debian::
+
+      "Sorry only applicable to apt-get based systems!";
+}

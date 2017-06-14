@@ -1,0 +1,53 @@
+body common control
+{
+  bundlesequence => { "tpgvc", "test_package_gem_verify" };
+}
+
+bundle common tpgvc
+{
+  vars:
+
+    "inputs" slist => {
+      "${sys.libdir}/stdlib.cf",
+      "${sys.inputdir}/lib/vacana/lib.cf",
+      "${this.promise_dirname}/packages.cf",
+    };
+}
+
+body file control
+{
+  inputs => { "@{tpgvc.inputs}" };
+}
+
+bundle agent test_package_gem_verify
+{
+  vars:
+
+    "package"  string => "riemann-dash";
+    "del_opts" string => "-x";
+    "add_opts" string => "--no-rdoc --no-ri";
+    "cpkg"     string => canonify("${package}");
+
+  methods:
+
+    "delete"
+      usebundle => va_package_gem_delete(
+        "${package}", "${del_opts}", "${this.bundle}"
+      );
+    "add"
+      usebundle => va_package_gem_add(
+        "${package}", "${add_opts}", "${this.bundle}"
+      );
+    "verify" 
+      usebundle => va_package_gem_verify(
+        "${package}", "${this.bundle}"
+      );
+
+  reports:
+
+    "Verified ${package}"
+      ifvarclass => "va_package_gem_verify_${cpkg}_kept";
+
+    "Verfication for ${package} failed"
+      ifvarclass => "va_package_gem_verify_${cpkg}_failed";
+}

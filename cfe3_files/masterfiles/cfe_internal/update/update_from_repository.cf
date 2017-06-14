@@ -1,0 +1,50 @@
+bundle agent cfe_internal_update_from_repository
+{
+  meta:
+
+    "purpose" string => "Pull new masterfiles first from remote repository";
+
+  vars:
+
+    !dev_env::
+      "args" string => "prod";
+
+    dev_env::
+      "args" string => "dev";
+
+  commands:
+
+    "${update_def.masterfiles_update_script}"
+      args    => "${args}",
+      classes => u_kept_successful_command_results(
+        "bundle", "masterfiles_deploy");
+
+  reports:
+
+    masterfiles_deploy_not_kept::
+
+      "Masterfiles deployment failed, for more info see script output";
+
+    (DEBUG|DEBUG_cfe_internal_masterfiles_stage).(masterfiles_deploy_kept|masterfiles_deploy_repaired)::
+
+      "DEBUG ${this.bundle}: Masterfiles deployed successfully";
+}
+
+
+body classes u_kept_successful_command_results(scope, class_prefix)
+{
+  kept_returncodes => { "0" };
+  failed_returncodes => { "1" };
+
+  scope => "${scope}";
+
+  promise_kept => { "${class_prefix}_kept" };
+  promise_repaired => { "${class_prefix}_repaired" };
+  repair_failed => { "${class_prefix}_not_kept",
+                     "${class_prefix}_failed" };
+  repair_denied => { "${class_prefix}_not_kept",
+                     "${class_prefix}_denied" };
+  repair_timeout => { "${class_prefix}_not_kept",
+                      "${class_prefix}_timeout" };
+}
+

@@ -1,0 +1,22 @@
+bundle agent va_package_gem_verify(gem, promisee)
+# @depends  va_package_gem_manage
+# @brief    Verify the 'gem' is present
+#
+# @classes  va_package_gem_verify_${cgem}_(kept|failed)
+#
+# NOTE: cgem is canonify("${gem}")
+#
+# @param gem        Name of the gem to verify
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Verify if gem is present";
+    "tags"     slist => { "packages", "gem", "vacana" };
+
+  methods:
+
+    "verify"
+      comment   => "Verify given gem",
+      usebundle => va_package_gem_manage("verify", "${gem}", "", "${promisee}");
+}

@@ -1,0 +1,12 @@
+bundle common va_paths
+# @brief A few custom paths
+{
+  vars:
+
+    debian::
+
+      "path[gem]"       string => "/usr/bin/gem";
+      "path[pip3]"      string => "/usr/bin/pip3";
+      "path[dt_svc]"    string => "/usr/bin/svc";
+      "path[dt_svstat]" string => "/usr/bin/svstat";
+}

@@ -1,0 +1,39 @@
+bundle common va_packages
+{
+  vars:
+
+    "inputs"
+      slist => {
+        # Packages bundles
+        "${this.promise_dirname}/package_add.cf",
+        "${this.promise_dirname}/package_add_latest.cf",
+        "${this.promise_dirname}/package_add_release.cf",
+        "${this.promise_dirname}/package_verify.cf",
+        "${this.promise_dirname}/package_check_present.cf",
+        "${this.promise_dirname}/package_delete.cf",
+        "${this.promise_dirname}/package_manage.cf",
+        "${this.promise_dirname}/package_methods.cf",
+        "${this.promise_dirname}/package_specific_add.cf",
+        "${this.promise_dirname}/package_specific_addupdate.cf",
+        "${this.promise_dirname}/package_specific_manage.cf",
+
+        # Gem bundles
+        "${this.promise_dirname}/package_gem_add.cf",
+        "${this.promise_dirname}/package_gem_delete.cf",
+        "${this.promise_dirname}/package_gem_manage.cf",
+        "${this.promise_dirname}/package_gem_update.cf",
+        "${this.promise_dirname}/package_gem_verify.cf",
+
+        # Python Pip bundles
+        "${this.promise_dirname}/package_pip_add.cf",
+        "${this.promise_dirname}/package_pip_delete.cf",
+        "${this.promise_dirname}/package_pip_update.cf",
+        "${this.promise_dirname}/package_pip_manage.cf",
+        "${this.promise_dirname}/package_pip_verify.cf",
+      };
+}
+
+body file control
+{
+  inputs => { "@{va_packages.inputs}" };
+}

@@ -1,0 +1,20 @@
+bundle common va_services
+{
+  vars:
+
+    "inputs"
+      slist => {
+        "${this.promise_dirname}/daemontools_manage.cf",
+        "${this.promise_dirname}/service_manage.cf",
+        "${this.promise_dirname}/service_reload.cf",
+        "${this.promise_dirname}/service_restart.cf",
+        "${this.promise_dirname}/service_start.cf",
+        "${this.promise_dirname}/service_stop.cf",
+        "${this.promise_dirname}/systemctl.cf",
+      };
+}
+
+body file control
+{
+  inputs => { "@{va_services.inputs}" };
+}

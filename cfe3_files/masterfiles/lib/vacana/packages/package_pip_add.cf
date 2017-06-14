@@ -1,0 +1,28 @@
+bundle agent va_package_pip3_add(module, flags, promisee)
+# @depends  va_package_pip_manage
+# @brief    Ensure that 'module' is present on the system using pip for python3
+#
+# @classes  va_package_pip_add_${cmodule}_(kept|repaired|failed)
+#
+# @param module     Name of the module to add to the system
+# @param flags      Command flags passed to the pip command
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Add a given module via python package manager pip to the system";
+    "tags"     slist => { "packages", "python", "pip", "module", "vacana" };
+
+  vars:
+
+    "cmodule" string => canonify("${module}");
+
+  methods:
+
+    "va_package_pip3_add_${cmodule}"
+      comment   => "Add python ${module} to the system",
+      handle    => "va_package_pip3_add_methods_package_pip_manage",
+      usebundle => va_package_pip_manage(
+        "add", "${module}", "${flags}", "${va_paths.path[pip3]}", "${promisee}"
+      );
+}

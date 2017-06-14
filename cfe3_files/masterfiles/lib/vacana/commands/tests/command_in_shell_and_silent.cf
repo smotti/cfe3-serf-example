@@ -1,0 +1,52 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+
+  bundlesequence => { "test_va_command_in_shell_and_silent" };
+}
+
+bundle agent test_va_command_in_shell_and_silent
+{
+  meta:
+
+    "purpose" string => "Test bundle va_command_in_shell_and_silent";
+    "tags"     slist => { "commands", "test", "vacana"};
+
+  vars:
+
+    "command"   string => "/bin/echo hello";
+    "codes"       data => parsejson(
+      '{ "kept": "0", "repaired": "0", "failed": "1" }'
+    );
+    "promisee"  string => "test_va_command_in_shell_and_silent";
+
+    "ccommand"   string => canonify("${command}");
+
+  classes:
+
+    "test_pass" expression => classmatch(
+      "va_command_in_shell_and_silent_${ccommand}_(kept|repaired)");
+
+  methods:
+
+    "test_va_command_in_shell_and_silent_run"
+      comment   => "Call bundle for test",
+      handle    => "test_va_command_in_shell_and_silent_methods_run_bundle",
+      usebundle => va_command_in_shell_and_silent(
+        "${command}", "@{codes}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_command_in_shell_and_silent"
+        ifvarclass => "test_pass";
+
+    any::
+
+      "FAIL: test_va_command_in_shell_and_silent - commands promise failed"
+        ifvarclass => "va_command_in_shell_and_silent_${ccommand}_failed";
+}

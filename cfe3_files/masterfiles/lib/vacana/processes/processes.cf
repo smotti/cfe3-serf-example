@@ -1,0 +1,14 @@
+bundle common va_processes
+{
+  vars:
+
+    "inputs"
+      slist => {
+        "${this.promise_dirname}/process_check.cf",
+      };
+}
+
+body file control
+{
+  inputs => { "@{va_processes.inputs}" };
+}

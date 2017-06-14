@@ -1,0 +1,115 @@
+###############################################################################
+#
+# Bundle to fetch host_info_reports from lastseen nodes
+#
+# NOTE: This should only be used in small infrastructures, it won't scale for
+#       large installations. The system might cope for a large amount of small
+#       disk I/O operations (see https://www.youtube.com/watch?v=NCTSN5KOmbM).
+#
+###############################################################################
+
+bundle agent va_inventory_client_get
+# @brief Fetch host_info_report from lastseen clients/nodes
+{
+  meta:
+
+    "purpose" string => "Fetch the host_info_report from lastseen clients";
+
+  vars:
+
+    "report_dir"
+      comment => "Path to where host_info reports are stored",
+      handle  => "va_inventory_client_get_vars_report_dir",
+      string  => "${sys.workdir}/vacana/host_info";
+    "crd"
+      string => canonify("${report_dir}");
+
+    am_policy_hub::
+
+      "client_report_dir"
+        comment => "Path to where reports of individual clients are stored",
+        handle  => "va_inventory_client_get_vars_client_report_dir",
+        string  => "${report_dir}/client_reports";
+      "ccrd"
+        string => canonify("${client_report_dir}");
+
+      "lastseen"
+        comment => "Host seen within the last hour",
+        handle  => "va_inventory_client_get_vars_lastseen",
+        slist   => { hostsseen("1", "lastseen", "address") };
+
+      "clients" 
+        comment => "Add policy hub to client list",
+        handle  => "va_inventory_client_get_vars_clients",
+        slist   => { "${sys.policy_hub}", "@{lastseen}" };
+
+  classes:
+
+    "tidy_client_report_dir"
+      comment    => "Set class every 60 mintues to remove old client reports",
+      handle     => "va_inventory_client_get_classes_tidy_client_report_dir",
+      action     => if_elapsed("60"),
+      expression => "any";
+
+  files:
+
+    "${report_dir}" -> { "host inventory" }
+      comment => "Ensure ${report_dir} exists",
+      handle  => "va_inventory_client_get_files_report_dir",
+      action  => va_log_promise(
+        "${crd}", "${this.handle}", "${this.promiser}", "${this.bundle}"),
+      classes => va_classes_generic("${crd}"),
+      create  => "true",
+      perms   => m("644");
+
+    am_policy_hub::
+
+      "${client_report_dir}" -> { "host inventory" }
+        comment => "Ensure ${client_report_dir} exists on policy hub",
+        handle  => "va_inventory_client_get_files_client_report_dir",
+        action  => va_log_promise(
+          "${ccrd}", "${this.handle}", "${this.promiser}", "${this.bundle}"),
+        classes => va_classes_generic("${ccrd}"),
+        create  => "true",
+        perms   => m("644");
+
+    am_policy_hub.tidy_client_report_dir::
+
+      "${client_report_dir}" -> { "host inventory" }
+        comment     => "Garbage collection of old inventories",
+        handle      => "va_inventory_client_get_files_client_report_dir_tidy",
+        action  => va_log_promise(
+          "${ccrd}_dir_tidy", "${this.handle}", "${this.promiser}", "${this.bundle}"),
+        classes => va_classes_generic("${ccrd}_dir_tidy"),
+        file_select => plain,
+        delete      => tidy;
+
+  methods:
+
+    am_policy_hub::
+    
+      "inventory"
+        comment   => "Background for parallel processing",
+        action    => bg("5", "5"),
+        usebundle => va_bg_inventory_get("${client_report_dir}", "${clients}");
+
+}
+
+bundle agent va_bg_inventory_get(download_dir, clients)
+# @brief Run background jobs to fetch the host info reports
+{
+  vars:
+
+    "dir_reports"
+      string => "${sys.workdir}/vacana/host_info";
+
+  files:
+
+    "${download_dir}/${clients}.json" -> { "host inventory" }
+      comment   => "Download client host info report",
+      handle    => "va_bg_inventory_get_files_client_report",
+      classes   => if_repaired("insert_host_inventory_for_${clients}"),
+      perms     => m("644"),
+      copy_from => remote_dcp(
+        "${dir_reports}/va_host_info_report.json", "${clients}");
+}

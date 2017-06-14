@@ -1,0 +1,100 @@
+bundle agent va_package_specific_manage(desired, package, package_version, package_arch, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Ensure 'desired' state for 'package' of 'package_version' and
+#           'package_arch'
+#
+# @classes  va_package_specific_${desired}_${cpackage}_(kept|repaired|failed)
+#
+# NOTE: cpackage means its the canonified version of the package vars:
+#
+# @param desired          Desired state the package should be in:
+#                         add, delete, addupdate, update, reinstall, patch, verify
+# @param package          Name of the package to manage
+# @param package_version  Version of the package
+# @param package_arch     Package architecture: i386, amd64 (at least on debian)
+# @param promisee         A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Manage a specific package with version and arch";
+    "tags"     slist => { "packages", "vacana" };
+
+  vars:
+    
+    any::
+      
+      "class_prefix"
+        comment => "Prefix for promise outcome classes",
+        string  => canonify("va_package_specific_${desired}_${package}");
+
+    filebased::
+
+      "dir"      string => dirname("${package}");
+      "pkg_file" string => lastnode("${package}", "/");
+
+  classes:
+
+    "filebased"
+      comment    => "Check if package is a file on the disk",
+      expression => fileexists("${package}");
+
+    "extracted_package_basename"
+      comment => "Use regex to extract package_basename from path if package
+        is a file. The method in the stdlib doesn't work.",
+      expression => regextract(
+        "([\w\d\-]*)_.*", ${pkg_file}, "package_basename");
+
+  packages:
+
+    debian.!filebased::
+    
+      "${package}"
+        handle                => "va_package_specific_manage_packages_not_filebased",
+        action                => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes               => va_classes_generic("${class_prefix}"),
+        package_policy        => "${desired}",
+        package_select        => ">=",
+        package_version       => "${package_version}",
+        package_architectures => { "${package_arch}" },
+        package_method        => apt_get;
+
+    debian.filebased::
+
+      "${package_basename[1]}"
+        handle                => "va_package_specific_manage_packages_filebased",
+        action                => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes               => va_classes_generic("${class_prefix}"),
+        package_policy        => "${desired}",
+        package_select        => ">=",
+        package_version       => "${package_version}",
+        package_architectures => { "${package_arch}" },
+        package_method        => dpkg_version("${dir}");
+
+    redhat.!filebased::
+    
+      "${package}"
+        handle                => "va_package_specific_manage_packages_not_filebased",
+        action                => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes               => va_classes_generic("${class_prefix}"),
+        package_policy        => "${desired}",
+        package_select        => ">=",
+        package_version       => "${package_version}",
+        package_architectures => { "${package_arch}" },
+        package_method        => yum_rpm;
+
+    suse::
+    
+      "${package}"
+        handle                => "va_package_specific_manage_packages_not_filebased",
+        action                => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes               => va_classes_generic("${class_prefix}"),
+        package_policy        => "${desired}",
+        package_select        => ">=",
+        package_version       => "${package_version}",
+        package_architectures => { "${package_arch}" },
+        package_method        => zypper;
+}

@@ -1,0 +1,23 @@
+bundle agent va_service_stop(service, promisee)
+# @depends  va_service_manage
+# @brief    Ensure that 'service' is stopped
+#
+# @classes  va_service_stop_${cservice}_(kept|repaired|failed)
+#
+# NOTE: cservice is canonify("${service}")
+#
+# @param service    Service to stop
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Ensure that service is stopped";
+    "tags"     slist => { "services", "vacana" };
+
+  methods:
+
+    "va_service_stop"
+      comment   => "Stop ${service}",
+      handle    => "va_service_stop_methods_manage",
+      usebundle => va_service_manage("stop", "${service}", "${promisee}");
+}

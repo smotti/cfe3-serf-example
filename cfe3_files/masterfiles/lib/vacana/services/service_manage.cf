@@ -1,0 +1,35 @@
+bundle agent va_service_manage(desired, service, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Ensure that 'service' is put into the 'desired' state
+#
+# @classes  va_service_${desired}_${cservice}_(kept|repaired|failed)
+#
+# NOTE: cservice is canonify("${service}")
+# NOTE: This bundle uses the standard_services bundle from the stdlib
+#
+# @param desired    Desired state of the service: start, stop, restart,
+#                   reload, ...
+# @param service    Service to manage
+# @param promisee   A promisee for this promise
+{
+  meta:
+  
+    "purpose" string => "Make sure the given service is put into the desired state";
+    "tags"     slist => { "services", "vacana" };
+
+  vars:
+
+    "class_prefix"
+      comment => "Prefix for promise outcome classes",
+      string  => canonify("va_service_${desired}_${service}");
+
+  services:
+
+    "${service}" -> { "${promisee}" }
+      comment        => "Ensure state ${desired} for ${service}",
+      handle         => "va_service_manage_services_ensure_state",
+      action         => va_log_promise(
+        "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes        => va_classes_generic("${class_prefix}"),
+      service_policy => "${desired}";
+}

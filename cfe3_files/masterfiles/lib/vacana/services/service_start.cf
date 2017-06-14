@@ -1,0 +1,24 @@
+bundle agent va_service_start(service, promisee)
+# @depends  va_service_manage
+# @brief    Ensure that 'service' is started/running
+#
+# @classes  va_service_start_${cservice}_(kept|repaired|failed)
+#
+# NOTE: cservice is canonify("${service}")
+# NOTE: This bundle uses the standard_services bundle from the stdlib
+#
+# @param service    Service to start
+# @param promisee   A promisee for this promise
+{
+  meta:
+  
+    "purpose" string => "Make sure the given service is started/running";
+    "tags"     slist => { "services", "vacana" };
+
+  methods:
+
+    "va_service_start"
+      comment   => "Start ${service}",
+      handle    => "va_service_start_methods_manage",
+      usebundle => va_service_manage("start", "${service}", "${promisee}");
+}

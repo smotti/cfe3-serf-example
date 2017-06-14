@@ -1,0 +1,27 @@
+bundle common va_files
+{
+  vars:
+
+    "inputs"
+      slist => {
+        "${this.promise_dirname}/dir_copy_local.cf",
+        "${this.promise_dirname}/dir_copy_remote.cf",
+        "${this.promise_dirname}/dir_remove.cf",
+        "${this.promise_dirname}/file_aws_copy.cf",
+        "${this.promise_dirname}/file_aws_cmp_etag.cf",
+        "${this.promise_dirname}/file_aws_etag.cf",
+	      "${this.promise_dirname}/file_copy_local.cf",
+        "${this.promise_dirname}/file_copy_remote.cf",
+        "${this.promise_dirname}/file_create.cf",
+        "${this.promise_dirname}/file_edit_template.cf",
+        "${this.promise_dirname}/file_edit_template_with_data.cf",
+        "${this.promise_dirname}/file_perms.cf",
+	      "${this.promise_dirname}/file_remove.cf",
+        "${this.promise_dirname}/file_sym_link.cf",
+      };
+}
+
+body file control
+{
+  inputs => { "@{va_files.inputs}" };
+}

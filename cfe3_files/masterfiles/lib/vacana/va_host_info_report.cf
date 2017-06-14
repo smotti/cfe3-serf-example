@@ -1,0 +1,523 @@
+###############################################################################
+#
+# Vacana Host Info Report.
+#
+# The data is written do separate CSV files for easy parsing.
+# JSON in this case is not possible because of implicit lopping and not
+# being able to properly end lists (get rid of the trailing comma).
+#
+###############################################################################
+
+bundle common va_hir_g
+{
+  vars:
+
+    "dir_reports"
+      comment => "Where the host info report should be generated",
+      string  => "${sys.workdir}/vacana/host_info";
+    "tool_generate_report"
+      comment => "Path to the tool responsible for generating the final JSON report",
+      string  => "${sys.inputdir}/tools/va_generate_report.py";
+
+  classes:
+
+    "show_udp"
+      comment    => "mon.listening_udp(4|6)_ports doesn't seem to work,
+        thus don't show UDP ports",
+      expression => "!any";
+    "show_software"
+      comment    => "Collect data about software by default",
+      expression => "any";
+    "dir_reports_exists"
+      comment => "Check if required directory exists",
+      and     => {
+        fileexists("${dir_reports}"),
+        isdir("${dir_reports}")
+      };
+}
+
+
+bundle agent va_host_info_report
+{
+  meta:
+
+    "purpose"
+      string => "Create a report about this autonomous host";
+
+  files:
+
+    !dir_reports_exists::
+
+      "${va_hir_g.dir_reports}/."
+        comment => "Create required directory, where reports will be stored",
+        handle  => "va_host_info_report_files_create_dir_reports",
+        create  => "true";
+
+  methods:
+
+    linux|unix::
+
+      "Tool"
+        comment => "Ensure generate_report tool has proper perms",
+        usebundle => va_file_perms(
+          "${va_hir_g.tool_generate_report}", "0700", "root", "root", "${this.bundle}"
+        );
+
+      "OS"
+        comment   => "Collect some general information about the OS",
+        usebundle => va_host_info_report_os;
+      "CFEngine"
+        comment   => "Collect data about CFEngine itself",
+        usebundle => va_host_info_report_cfengine;
+      "Identity"
+        comment   => "Collect info about the hosts identify",
+        usebundle => va_host_info_report_identity;
+      "Network"
+        comment   => "Collect network related info",
+        usebundle => va_host_info_report_network;
+
+    (linux|unix).show_software::
+
+      "Software"
+        comment   => "Collect information about software installed",
+        usebundle => va_host_info_report_software;
+
+    linux|unix::
+
+      "Final"
+        comment   => "Generate the final report as a JSON document",
+        usebundle => va_host_info_report_generate_final;
+
+  reports:
+
+    !linux.!unix::
+
+      "Sorry but this is only working on *nix.";
+}
+
+
+#
+# Copied from the core masterfiles, with some minor changes.
+#
+
+bundle agent va_host_info_report_cfengine
+{
+  meta:
+
+    "purpose"
+      string => "Collect general information about CFEngine itself";
+
+  classes:
+
+    "have_masterdir_cf_promises_validated"
+      expression => fileexists("$(sys.masterdir)/cf_promises_validated"),
+      handle => "va_host_info_report_cfengine_classes_have_masterdir_cf_promises_validated",
+      comment => "We need to know if we have the files, because if we try to
+                  read them when they don't exist we get error messages. Look
+                  in masterdir because we are interested in the last time when
+                  policy was changed and validated (indicating when a policy
+                  release was received). ";
+
+    "have_inputdir_cf_promises_release_id"
+      expression => fileexists("$(sys.inputdir)/cf_promises_release_id"),
+      handle => "va_host_info_report_cfengine_classes_have_masterdir_cf_promises_release_id",
+      comment => "We need to know if we have the files, because if we try to
+                  read them when they don't exist we get error messages. Look
+                  in inputdir because we are interested in the current policy
+                  release id as determined on the policyserver, not as
+                  calculated locally.";
+
+  vars:
+
+    any::
+
+      "cfengine_info_files"
+        handle => "va_host_info_report_vars_cfengine_info_files",
+        slist => { "cf_promises_validated", "cf_promises_release_id" },
+        comment => "These files are required for CFEngine related information,
+                    and if we try to read them when they don't exist we get
+                    ugly error messages";
+
+    have_masterdir_cf_promises_validated::
+
+      "cf_promises_validated"
+        data => readjson("$(sys.masterdir)/cf_promises_validated", 1K),
+        comment => "This contains information about the last time policy was
+                    updated and subsequently validated, it indicates when
+                    policy was last updated from the policy server.";
+
+      "cf_promises_validated_timestamp_formatted"
+        string => strftime("localtime", "%F %T %Z", $(cf_promises_validated[timestamp])),
+        comment => "It's useful to display when policy was last updated and
+                    verified, in a human readable format.";
+
+    have_inputdir_cf_promises_release_id::
+
+      "cf_promises_release_id"
+        data => readjson("$(sys.inputdir)/cf_promises_release_id", 1K);
+
+    any::
+
+      "report_file"
+        comment => "Where the report should be generated",
+        string  => "${va_hir_g.dir_reports}/${this.bundle}.csv";
+      "last_agent_run"
+        string => strftime("localtime", "%F %T %Z", filestat("$(sys.workdir)/outputs/previous", "mtime"));
+      "cfe"
+        comment => "General data about CFEngine",
+        data    => parsejson(
+          '{
+            "version": "${sys.cf_version}",
+            "last_agent_run": "${last_agent_run}",
+            "policy_release_id": "${cf_promises_release_id}",
+            "policy_last_updated": "${cf_promises_validated_timestamp_formatted}",
+            "bootstrapped_to": "${sys.policy_hub}"
+          }'
+        );
+
+    DEBUG::
+
+      "printable"
+        string => format("%S", cf_promises_release_id);
+
+  files:
+
+    "${report_file}"
+      comment => "Delete old report",
+      handle  => "va_host_info_report_cfengine_files_delete_report_file",
+      delete  => tidy;
+
+  reports:
+
+    any::
+
+      "version,last_agent_run,policy_release_id,policy_last_updated,bootstrapped_to"
+        handle         => "va_host_info_report_cfengine_reports_column_names",
+        depends_on     => { "va_host_info_report_cfengine_files_delete_report_file" },
+        report_to_file => "${report_file}";
+      "${cfe[version]},${cfe[last_agent_run]},${cfe[policy_release_id]},${cfe[policy_last_updated]},${cfe[bootstrapped_to]}"
+        depends_on     => { "va_host_info_report_cfengine_reports_column_names" },
+        report_to_file => "${report_file}";
+
+    DEBUG::
+
+      "$(printable)";
+
+    DEBUG.have_masterdir_cf_promises_validated::
+
+      "I have cf_promises_validated";
+
+    DEBUG.have_inputdir_cf_promises_release_id::
+
+      "I have a policy release ID";
+}
+
+
+bundle agent va_host_info_report_identity
+{
+    meta:
+
+      "purpose"
+        string => "Collect information about the hosts identity";
+
+    vars:
+
+      "report_file"
+        comment => "Where the report should be generated",
+        string  => "${va_hir_g.dir_reports}/${this.bundle}.csv";
+      "identity"
+        comment => "The identity data",
+        data    => parsejson(
+          '{
+            "fqdn": "${sys.fqhost}",
+            "id": "${sys.key_digest}",
+            "uqdn": "${sys.uqhost}"
+          }'
+        );
+
+    DEBUG::
+
+      "debug_identity"
+        string => format("%S", identity);
+
+  files:
+
+    "${report_file}"
+      comment => "Delete old report",
+      handle  => "va_host_info_report_identity_files_delete_report_file",
+      delete  => tidy;
+
+  reports:
+
+    DEBUG::
+
+      "${debug_identity}";
+
+    any::
+
+      "uqdn,fqdn,id"
+        handle         => "va_host_info_report_identity_reports_identity_header",
+        depends_on     => { "va_host_info_report_identity_files_delete_report_file" },
+        report_to_file => "${report_file}";
+      "${identity[uqdn]},${identity[fqdn]},${identity[id]}"
+        depends_on     => { "va_host_info_report_identity_reports_identity_header" },
+        report_to_file => "${report_file}";
+}
+
+
+bundle agent va_host_info_report_network
+{
+  meta:
+
+    "purpose"
+      string => "Collect network related info about the host";
+
+  vars:
+
+      "if_report_file"
+        comment => "Where the report about network interfaces should be generated",
+        string  => "${va_hir_g.dir_reports}/${this.bundle}_interfaces.csv";
+      "port_report_file"
+        comment => "Where the report about network ports should be generated",
+        string  => "${va_hir_g.dir_reports}/${this.bundle}_ports.csv";
+      "interfaces"
+        comment => "A list of available network interfaces",
+        slist   => { @{sys.interfaces} };
+      "if[${interfaces}]"
+        comment => "Interface related data",
+        string  => "${interfaces},${sys.ipv4[${interfaces}]},${sys.hardware_mac[${interfaces}]},${sys.interface_flags[${interfaces}]}";
+      "ipv4_tcp"
+        slist => { @{mon.listening_tcp4_ports} };
+      "ipv6_tcp"
+        slist => { @{mon.listening_tcp6_ports} };
+      "tcp"
+        slist => { @{ipv4_tcp}, @{ipv6_tcp} };
+
+    show_udp::
+
+      "ipv4_udp"
+        slist => { @{mon.listening_udp4_ports} };
+      "len_ipv4_udp"
+        int => length("ipv4_udp");
+      "ipv6_udp"
+        slist => { @{mon.listening_udp6_ports} };
+      "len_ipv6_udp"
+        int => length("ipv6_udp");
+      "udp"
+        slist => { @{ipv4_udp}, @{ipv6_udp} };
+
+    DEBUG::
+
+      "debug_tcp" string => format("%S", tcp);
+      "debug_udp" string => format("%S", udp);
+
+  classes:
+
+    show_udp::
+
+      "have_ports_ipv4_udp" expression => isgreaterthan("${len_ipv4_udp}", "0");
+      "have_ports_ipv6_udp" expression => isgreaterthan("${len_ipv6_udp}", "0");
+
+  files:
+
+    # Delete old report files.
+
+    "${if_report_file}"
+      handle => "va_host_info_report_network_files_delete_if_report_file",
+      delete => tidy;
+    "${port_report_file}"
+      handle => "va_host_info_report_network_files_delete_port_report_file",
+      delete => tidy;
+
+  reports:
+
+    DEBUG::
+
+      "Interface: ${if[${interfaces}]}";
+      "Number of IPv4 UDP Ports: ${len_ipv4_udp}";
+      "Number of IPv6 UDP Ports: ${len_ipv6_udp}";
+      "All TCP Ports: ${debug_tcp}";
+      "All UDP Ports: ${debug_udp}";
+
+    any::
+
+      "name,ipv4,mac,flags"
+        handle         => "va_host_info_report_network_reports_interfaces_header",
+        depends_on     => { "va_host_info_report_network_files_delete_if_report_file" },
+        report_to_file => "${if_report_file}";
+      "${if[${interfaces}]}"
+        depends_on     => { "va_host_info_report_network_reports_interfaces_header" },
+        report_to_file => "${if_report_file}";
+
+      "port,inet,type"
+        handle         => "va_host_info_report_network_reports_ports_header",
+        depends_on     => { "va_host_info_report_network_files_delete_port_report_file" },
+        report_to_file => "${port_report_file}";
+      "${ipv4_tcp},ipv4,tcp"
+        depends_on     => { "va_host_info_report_network_reports_ports_header" },
+        report_to_file => "${port_report_file}";
+      "${ipv6_tcp},ipv6,tcp"
+        depends_on     => { "va_host_info_report_network_reports_ports_header" },
+        report_to_file => "${port_report_file}";
+
+    show_udp.have_ports_ipv4_udp::
+
+      "${ipv4_udp},ipv4,udp"
+        depends_on     => { "va_host_info_report_network_reports_ports_header" },
+        report_to_file => "${port_report_file}";
+
+    show_udp.have_ports_ipv6_udp::
+
+      "${ipv6_udp},ipv6,udp"
+        depends_on     => { "va_host_info_report_network_reports_ports_header" },
+        report_to_file => "${port_report_file}";
+}
+
+
+bundle agent va_host_info_report_os
+{
+  meta:
+
+    "purpose"
+      string => "Collect general information about the OS";
+
+  vars:
+
+    any::
+
+      "report_file"
+        comment => "Where the report should be generated",
+        string  => "${va_hir_g.dir_reports}/${this.bundle}.csv";
+      "os"
+        comment => "General data about the OS",
+        data    => parsejson(
+          '{
+            "arch": "${sys.arch}",
+            "os": "${sys.os}",
+            "release": "${sys.release}",
+            "flavor": "${sys.flavor}",
+            "version": "${sys.version}",
+            "uptime": "${sys.uptime}"
+          }'
+        );
+
+    DEBUG::
+
+      "debug_os"
+        string => format("%S", os);
+
+  files:
+
+    "${report_file}"
+      comment => "Delete old report",
+      handle  => "va_host_info_report_general_files_delete_report_file",
+      delete  => tidy;
+
+  reports:
+
+    any::
+
+      "os,arch,release,flavor,version,uptime"
+        comment        => "Write column names",
+        handle         => "va_host_info_report_general_reports_column_names",
+        depends_on     => { "va_host_info_report_general_files_delete_report_file" },
+        report_to_file => "${report_file}";
+      "${os[os]},${os[arch]},${os[release]},${os[flavor]},${os[version]},${os[uptime]}"
+        depends_on     => { "va_host_info_report_general_reports_column_names" },
+        report_to_file => "${report_file}";
+
+    DEBUG::
+
+      "${debug_os}";
+}
+
+
+bundle agent va_host_info_report_software
+{
+  meta:
+
+    "purpose"
+      string => "Report the software installed on the system";
+
+  vars:
+
+    any::
+
+      "report_file"
+        comment => "Where the report should be generated",
+        string  => "${va_hir_g.dir_reports}/${this.bundle}.csv";
+      "packages"
+        comment => "Get information about all packages currently on the system",
+        data    => packagesmatching(".*", ".*", ".*", ".*");
+      "i"
+        comment => "Indice for packages data struct",
+        slist   => getindices("packages");
+      "ri"
+        comment => "Reverse the indice so the list is lexically ordered by package names",
+        slist   => reverse("i");
+
+    DEBUG::
+
+      "printable"
+        string => format("%S", packages);
+
+  files:
+
+    "${report_file}"
+      comment => "Delete old report",
+      handle  => "va_host_info_report_software_files_delete_report_file",
+      delete  => tidy;
+
+  reports:
+
+    any::
+
+      "name,version,arch,method"
+        handle         => "va_host_info_report_software_reports_header",
+        depends_on     => { "va_host_info_report_software_files_delete_report_file" },
+        report_to_file => "${report_file}";
+      "${packages[${ri}][name]},${packages[${ri}][version]},${packages[${ri}][arch]},${packages[${ri}][method]}"
+        depends_on => { "va_host_info_report_software_reports_header" },
+        report_to_file => "${report_file}";
+
+    DEBUG::
+    
+      "${printable}";
+}
+
+
+bundle agent va_host_info_report_generate_final
+{
+  meta:
+
+    "purpose"
+      string => "Generate final host info report an store as JSON document";
+
+  vars:
+
+    "cmd"
+      comment => "The command to execute to generate the final report",
+      string  => "${va_hir_g.tool_generate_report}";
+
+  classes:
+
+    "tool_generate_report_exists"
+      and => {
+        fileexists("${va_hir_g.tool_generate_report}"),
+        isexecutable("${va_hir_g.tool_generate_report}")
+      };
+
+  commands:
+
+    tool_generate_report_exists::
+
+      "${cmd}"
+        comment => "Generate the final report",
+        contain => in_shell;
+
+  reports:
+
+    !tool_generate_report_exists::
+
+      "${va_hir_g.tool_generate_report} either doesn't exist or isn't executable!";
+}

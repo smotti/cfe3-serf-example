@@ -1,0 +1,37 @@
+###############################################################################
+# This part is for cf-execd
+#
+# These body settings determine the behaviour of cf-execd,
+# including scheduling times and output capture to
+# $(sys.workdir)/outputs and relay via email.
+###############################################################################
+
+body executor control
+
+{
+
+    any::
+
+      splaytime  => "4"; # activity will be spread over this many time slices
+
+    cfengine_internal_agent_email.!cfengine_internal_disable_agent_email::
+      mailto     => "$(def.mailto)";
+      mailfrom   => "$(def.mailfrom)";
+      smtpserver => "$(def.smtpserver)";
+
+    any::
+
+      # Default:
+      #
+      # schedule => { "Min00", "Min05", "Min10", "Min15", "Min20",
+      #               "Min25", "Min30", "Min35", "Min40", "Min45",
+      #               "Min50", "Min55" };
+      schedule => { "Min00", "Min10", "Min20", "Min30", "Min40", "Min50" };
+
+      # The full path and command to the executable run by default (overriding builtin).
+      # cf-twin needs its own safe environment because of the update mechanism
+
+    !(windows|hpux|aix)::
+      exec_command => "$(sys.cf_agent) -f \"$(sys.update_policy_path)\" ; $(sys.cf_agent) -Dcf_execd_initiated";
+
+}

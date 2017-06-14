@@ -1,0 +1,14 @@
+upstream app {
+  {{#ips}}
+  server {{.}}:80;
+  {{/ips}}
+}
+
+server {
+  listen 80;
+  server_name application-loadbalancer;
+
+  location /myapp/ {
+    proxy_pass http://app/;
+  }
+}

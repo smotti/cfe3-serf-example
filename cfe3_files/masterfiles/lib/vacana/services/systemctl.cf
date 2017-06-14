@@ -1,0 +1,22 @@
+bundle agent va_systemctl(args, promisee)
+{
+  meta:
+
+    "purpose" string => "Execute systemctl with given arguments";
+
+  vars:
+
+    "class_prefix" string => canonify("va_systemctl_${args}");
+    "kept"          slist => { "0" };
+    "cmd"          string => concat("systemctl ", "${args}");
+
+  commands:
+
+    "${cmd}" -> { "${promisee}" }
+      handle    => "va_systemctl_execute",
+      action    => va_log_promise(
+        "${class_prefix}", "${this.bundle}", "${this.promiser}", "${promisee}"),
+      classes   => va_classes_cmd_kept("${class_prefix}", @{kept}),
+      module    => "false",
+      contain   => in_shell;
+}

@@ -1,0 +1,37 @@
+bundle agent va_file_aws_copy(src, dst, promisee)
+# @depends  va_log_promise va_command_in_shell
+# @brief    Copy 'src' to 'dst' using aws cli tool with s3 command
+#
+# @classes  va_file_aws_copy_${cdst}_(kept|repaired|failed)
+#
+# @param src      Path to the source file, can be: LocalPath or S3Path
+# @param dst      Path to destination, can be: LocalPath or S3Path
+# @param promisee A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Copy a file from src to dst using aws cli tool";
+    "tags"     slist => { "files", "aws", "s3", "vacana" };
+
+  vars:
+
+    "class_prefix"  string => canonify("va_file_aws_copy_${dst}");
+
+    # AWS CLI return codes: https://docs.aws.amazon.com/cli/latest/topic/return-codes.html
+    "code_kept"      slist => { "0" };
+    "code_repaired"  slist => { "0" };
+    "code_failed"    slist => { "1", "2", "130", "255" };
+
+    "cmd_aws" string => "aws s3 cp ${src} ${dst}";
+
+  methods:
+
+    "ensure ${src} is copied to ${dst}"
+      handle    => "va_file_aws_copy_methods_exec_cmd",
+      action    => va_log_promise(
+        ${class_prefix}, ${this.handle}, ${this.promiser}, ${promisee}),
+      usebundle => va_command_in_shell(
+        "${cmd_aws}",
+        @{code_kept}, @{code_repaired}, @{code_failed},
+        "${this.bundle}");
+}

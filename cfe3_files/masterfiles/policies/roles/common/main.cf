@@ -1,0 +1,30 @@
+bundle agent example_common
+{
+  methods:
+
+    "ensure common packages are present"
+      usebundle => common_system_packages;
+}
+
+bundle agent common_system_packages
+{
+  meta:
+
+    "purpose" string => "Ensure common required packages are present";
+
+  vars:
+
+    "pkgs" slist => {
+      "jq",
+      };
+
+    "cp[${pkgs}]" string => canonify(${pkgs});
+
+  methods:
+
+    "ensure individual pkg presence is verified"
+      usebundle => va_package_verify(${pkgs}, ${this.bundle});
+    "ensure individual pkg is present"
+      if        => "va_package_verify_${cp[${pkgs}]}_failed",
+      usebundle => va_package_add(${pkgs}, ${this.bundle});
+}

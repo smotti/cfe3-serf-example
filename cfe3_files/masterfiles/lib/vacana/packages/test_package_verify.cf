@@ -1,0 +1,47 @@
+body common control
+{
+  bundlesequence => { "tpvc", "test_package_verify" };
+}
+
+bundle common tpvc
+{
+  vars:
+
+    "inputs" slist => {
+      "${sys.libdir}/stdlib.cf",
+      "${sys.inputdir}/lib/vacana/lib.cf",
+      "${this.promise_dirname}/packages.cf",
+    };
+}
+
+body file control
+{
+  inputs => { "@{tpvc.inputs}" };
+}
+
+bundle agent test_package_verify
+{
+  vars:
+
+    "package" string => "htop";
+    "cpkg"    string => canonify("${package}");
+
+  methods:
+
+    "delete"
+      usebundle => va_package_delete("${package}", "${this.bundle}");
+    "add"
+      usebundle => va_package_add("${package}", "${this.bundle}");
+    "verify" 
+      usebundle => va_package_verify(
+        "${package}", "${this.bundle}"
+      );
+
+  reports:
+
+    "Verified ${package}"
+      ifvarclass => "va_package_verify_${cpkg}_kept";
+
+    "Verfication for ${package} failed"
+      ifvarclass => "va_package_verify_${cpkg}_failed";
+}

@@ -1,0 +1,23 @@
+bundle agent va_service_restart(service, promisee)
+# @depends  va_service_manage
+# @brief    Ensure that 'service' is restarted
+#
+# @classes  va_service_restart_${cservice}_(kept|repaired|failed)
+#
+# NOTE: cservice is canonify("${service}")
+#
+# @param service    Service to restart
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Restart given service";
+    "tags"     slist => { "services", "vacana" };
+
+  methods:
+
+    "va_service_restart"
+      comment   => "Restart ${service}",
+      handle    => "va_service_restart_methods_manage",
+      usebundle => va_service_manage("restart", "${service}", "${promisee}");
+}

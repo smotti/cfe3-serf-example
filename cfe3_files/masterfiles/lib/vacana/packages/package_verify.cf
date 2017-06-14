@@ -1,0 +1,22 @@
+bundle agent va_package_verify(package, promisee)
+# @depends  va_package_manage
+# @brief    Check if a package is already present on the system by
+#           using the package_verify_command of the package manager.
+#
+# @classes  va_package_verify_${cpackage}_(kept|failed)
+#
+# NOTE: cpackage is canonify("${package}")
+#
+# @param  package   Name of the package to look for
+{
+  meta:
+
+    "purpose" string => "Check if package is present";
+    "tags"     slist => { "packages", "vacana" };
+
+  methods:
+
+    "verify"
+      comment   => "Verify is packaged is installed",
+      usebundle => va_package_manage("verify", "${package}", "${promisee}");
+}

@@ -1,0 +1,72 @@
+bundle agent va_package_add_latest(package, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Add/Update 'package'
+#
+# @classes  va_package_add_latest_${cpackage}_(kept|repaired|failed)
+#
+# NOTE: cpackage is canonify("${package}")
+# NOTE: This is basically package_latest from stdlib, but we added some
+#       classes and logging.
+#
+# @param package    Name of the package to add to the system
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Add given package (latest version) via package manager";
+    "tags"     slist => { "packages", "vacana" };
+
+  vars:
+
+    "class_prefix" string => canonify("${this.bundle}_${package}");
+
+  packages:
+
+    debian::
+
+      "${package}"
+        handle          => "va_package_add_latest_packages_add_package",
+        action          => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${this.bundle}"
+        ),
+        classes         => va_classes_generic("${class_prefix}"),
+        package_policy  => "addupdate",
+        package_version => "999999999",
+        package_method  => apt_get_permissive;
+
+    redhat::
+
+      "${package}"
+        handle          => "va_package_add_latest_packages_add_package",
+        action          => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${this.bundle}"
+        ),
+        classes         => va_classes_generic("${class_prefix}"),
+        package_policy  => "addupdate",
+        package_version => "999999999",
+        package_method  => yum_rpm_permissive;
+
+    suse::
+
+      "${package}"
+        handle          => "va_package_add_latest_packages_add_package",
+        action          => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${this.bundle}"
+        ),
+        classes         => va_classes_generic("${class_prefix}"),
+        package_policy  => "addupdate",
+        package_version => "999999999",
+        package_method  => zypper;
+
+    !debian.!redhat.!suse::
+
+      "${package}"
+        handle          => "va_package_add_latest_packages_add_package",
+        action          => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${this.bundle}"
+        ),
+        classes         => va_classes_generic("${class_prefix}"),
+        package_policy  => "addupdate",
+        package_version => "999999999",
+        package_method  => generic;
+}

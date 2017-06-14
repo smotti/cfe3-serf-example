@@ -1,0 +1,40 @@
+bundle agent va_groupadd(user, promisee)
+{
+  meta:
+
+    "purpose" string => "Add user group for specified user";
+
+  vars:
+
+    linux::
+
+      "command"
+        comment => "Command to add user group",
+        string  => "groupadd ${user}";
+
+      "kept_codes"     slist => { "9" };
+      "repaired_codes" slist => { "0" };
+      "failed_codes"   slist => { "2", "3", "4", "10" };
+
+    any::
+
+      "cuser" string => canonify("${user}");
+      "class_prefix"
+        comment => "Prefix for promise outcome classes",
+        string  => canonify("va_groupadd_${cuser}");
+
+  commands:
+
+    linux::
+
+      "${command}" -> { "${promisee}" }
+        comment => "Execute ${command}",
+        handle  => "va_groupadd_commands_execute",
+        action  => va_log_promise(
+          "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+        classes => va_classes_command(
+          "${class_prefix}",
+          @{kept_codes}, @{repaired_codes}, @{failed_codes}),
+        module  => "false",
+        contain => in_shell_and_silent;
+}

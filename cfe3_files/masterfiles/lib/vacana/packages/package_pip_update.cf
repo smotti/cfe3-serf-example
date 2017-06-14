@@ -1,0 +1,28 @@
+bundle agent va_package_pip3_update(module, flags, promisee)
+# @depends  va_package_pip_manage
+# @brief    Ensure that 'module' gets updated using pip for python3
+#
+# @classes  va_package_pip_update_${cmodule}_(kept|repaired|failed)
+#
+# @param module     Name of the module to update
+# @param flags      Command flags passed to the pip command
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Update a given module via python package manager pip";
+    "tags"     slist => { "packages", "python", "pip", "module", "vacana" };
+
+  vars:
+
+    "cmodule" string => canonify("${module}");
+
+  methods:
+
+    "va_package_pip3_update_${cmodule}"
+      comment   => "Update python ${module} from the system",
+      handle    => "va_package_pip3_update_methods_package_pip_manage",
+      usebundle => va_package_pip_manage(
+        "update", "${module}", "${flags}", "${va_paths.path[pip3]}", "${promisee}"
+      );
+}

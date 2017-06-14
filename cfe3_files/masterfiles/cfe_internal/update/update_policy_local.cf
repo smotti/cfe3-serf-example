@@ -1,0 +1,147 @@
+bundle agent cfe_internal_update_policy_local
+{
+  meta:
+
+    "purpose" string => "Update inputs by copying files locally from masterfiles";
+
+  methods:
+
+    !daily_inputs_sync_with_purge::
+      "Ensure manifest is present prior to updating inputs & modules"
+        handle    => "update_policy_local_methods_ensure_manifest",
+        usebundle => update_policy_local_ensure_manifest;
+      "Ensure inputs and modules are updated"
+        depends_on => { "update_policy_local_methods_ensure_manifest" },
+        usebundle  => update_policy_local_ensure_policy_update;
+
+    daily_inputs_sync_with_purge::
+      "Ensure inputs are purged prior to updating"
+        usebundle => update_policy_local_ensure_policy_update_with_purge;
+}
+
+
+bundle agent update_policy_local_ensure_manifest
+{
+  vars:
+
+    "dst" string => "${sys.inputdir}/${update_def.inputs_manifest}";
+    "src" string => "${sys.masterdir}/${update_def.inputs_manifest}";
+
+    "hash_inputs_manifest" string => file_hash(${dst}, "md5");
+
+  classes:
+
+    "manifests_differ"
+      expression => hashmatch(${src}, "md5", ${hash_inputs_manifest});
+
+  files:
+
+    "${dst}"
+      perms     => mog("600", "root", "root"),
+      copy_from => local_dcp(${src}),
+      classes => if_notkept("could_not_ensure_manifest");
+
+  reports:
+
+    DEBUG.manifests_differ::
+      "DEBUG: Copy manifest from ${src} to ${dst}";
+
+    could_not_ensure_manifest.manifests_differ::
+      "ERROR: Couldn't copy manifest from ${src} to ${dst}";
+}
+
+
+bundle agent update_policy_local_ensure_policy_update
+{
+  vars:
+
+    "ref" string => "${sys.inputdir}/${update_def.inputs_manifest}";
+    "comment"
+      comment => "Comment string in manifest.txt",
+      string  => "\s*#[^\n]*";
+    "array_delimiter"
+      comment => "Field delimiter for CSV data files read by data_readstringarrayidx",
+      string  => "\s*;;\s*";
+    "max_num"
+      comment => "Maximum number of lines to read from data file",
+      int     => "1000";
+    "max_bytes"
+      comment => "Maximum number of bytes to read from data file",
+      string  => "1M";
+    "manifest"
+      comment => "Read data file for parsing.",
+      data    => data_readstringarrayidx(
+        "${ref}",
+        "${comment}",
+        "${array_delimiter}",
+        "${max_num}",
+        "${max_bytes}");
+    "i"
+      comment => "Get index json loaded above.",
+      slist   => getindices( "manifest" );
+    "manifest_file_canon[${i}]"
+      comment => "Canonify for later use",
+      string  => canonify( "${manifest[${i}][0]}" );
+    "manifest_file[${i}]"
+      comment => "Turn into reference for simpler reading.",
+      string  => "manifest[${i}][0]";
+    "manifest_md5sum[${i}]"
+      comment => "Turn into reference for simpler reading.",
+      string  => "manifest[${i}][1]";
+
+  classes:
+
+    "copy_${manifest_file_canon[${i}]}"
+      comment => "Set copy class if file is missing.",
+      not     => fileexists( "${sys.inputdir}/${${manifest_file[${i}]}}" );
+    "copy_${manifest_file_canon[${i}]}"
+      comment => "Set copy class if file checksum does not match manifest.",
+      not     => hashmatch(
+        "${sys.inputdir}/${${manifest_file[${i}]}}",
+        "md5",
+        "${${manifest_md5sum[${i}]}}");
+    "restart_cfengine"
+      comment    => "Only restart cfengine when control files changed",
+      scope      => "namespace",
+      expression => classmatch("copy_controls_cf_.*");
+
+  files:
+
+    "${sys.inputdir}/${${manifest_file[${i}]}}"
+      comment   => "Copy file shown to be new by the manifest",
+      if        => "copy_${manifest_file_canon[${i}]}",
+      copy_from => local_dcp("${sys.masterdir}/${${manifest_file[${i}]}}");
+
+    "${sys.inputdir}/${${manifest_file[${i}]}}"
+      comment     => "Promise desired file perms",
+      file_select => not_tools,
+      perms       => mog("600", "root", "root");
+
+  reports:
+
+    DEBUG::
+
+      "DEBUG: Hashsum ${${manifest_file[${i}]}} : ${${manifest_md5sum[${i}]}}";
+      "DEBUG: Updated file ${${manifest_file[${i}]}}"
+        if => "copy_${manifest_file_canon[${i}]}";
+}
+
+
+bundle agent update_policy_local_ensure_policy_update_with_purge
+{
+  files:
+
+    "${sys.inputdir}/."
+      perms        => mog("600", "root", "root"),
+      classes      => if_repaired("restart_cfengine"),
+      depth_search => recurse("inf"),
+      file_select  => not_tools,
+      copy_from    => local_dcp("${sys.masterdir}/.");
+
+  reports:
+
+    DEBUG::
+
+      "DEBUG: Purged ${sys.inputdir}"
+        if => "restart_cfengine";
+}

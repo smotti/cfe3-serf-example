@@ -1,0 +1,30 @@
+bundle agent va_package_gem_update(gem, options, promisee)
+# @depends  va_package_gem_manage
+# @brief    Ensure that 'gem' is being updated
+#
+# @classes  va_package_gem_update_${cgem}_(kept|repaired|failed)
+#
+# NOTE: cgem is canonify("${gem}")
+#
+# @param gem        Name of the gem to update
+# @param options    Options passed to the gem command
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Update given gem via ruby's gem package manager";
+    "tags"     slist => { "packages", "gem", "vacana" };
+
+  vars:
+
+    "cgem" string => canonify("${gem}");
+
+  methods:
+
+    "va_package_gem_add_${cgem}"
+      comment   => "Update ${gem} via ruby's gem package manager",
+      handle    => "va_package_gem_update_methods_package_gem_manage",
+      usebundle => va_package_gem_manage(
+        "update", "${gem}", "${options}", "${promisee}"
+      );
+}

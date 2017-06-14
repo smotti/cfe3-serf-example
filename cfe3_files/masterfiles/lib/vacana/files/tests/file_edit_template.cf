@@ -1,0 +1,90 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+  bundlesequence => { "test_va_file_edit_template" };
+}
+
+bundle agent test_va_file_edit_template
+{
+  meta:
+
+    "purpose" string => "Test bundle va_file_edit_template";
+    "tags"     slist => { "files", "test", "vacana" };
+
+  vars:
+
+    "promisee" string => "test_va_file_edit_template";
+
+    "tmp"      string => "${this.promise_dirname}/test_template.tmp";
+    "mus"      string => "${this.promise_dirname}/test_template.mus";
+    "tmp_dest" string => "/tmp/test_template.tmp";
+    "mus_dest" string => "/tmp/test_template.mus";
+    "tmp_meth" string => "cfengine";
+    "mus_meth" string => "mustache";
+
+    "ctmp" string => canonify("${tmp_dest}");
+    "cmus" string => canonify("${mus_dest}");
+
+  classes:
+    any::
+      
+      "templates_rendered" and => {
+        fileexists("${tmp_dest}"),
+        fileexists("${mus_dest}") };
+
+    templates_rendered::
+      
+      "tmp_matched" expression => regline(".*${sys.uqhost}.*", "${tmp_dest}");
+      "mus_matched" expression => regline(".*${sys.uqhost}.*", "${mus_dest}");
+
+  methods:
+  
+    any::
+
+      "cfengine template"
+        usebundle => va_file_edit_template(
+          "${tmp}", "${tmp_dest}", "${tmp_meth}", "${promisee}");
+      "mustache template"
+        usebundle => va_file_edit_template(
+          "${mus}", "${mus_dest}", "${mus_meth}", "${promisee}");
+
+    tmp_matched.mus_matched::
+      "cleanup" usebundle => va_file_remove("${tmp_dest}", "${promisee}");
+      "cleanup" usebundle => va_file_remove("${mus_dest}", "${promisee}");
+      "classes" usebundle => set_classes("${ctmp}", "${cmus}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_file_edit_template"
+        ifvarclass => "test_pass";
+
+    any::
+
+      "FAIL: test_va_file_edit_template - Failed to render ${tmp} -> ${tmp_dest}"
+        ifvarclass => "va_file_edit_template_${ctmp}_failed";
+
+      "FAIL: test_va_file_edit_template - Failed to render ${mus} -> ${mus_dest}"
+        ifvarclass => "va_file_edit_template_${cmus}_failed";
+
+      "FAIL: test_va_file_edit_template - Cleanup failed"
+        ifvarclass => "va_file_remove_(${ctmp}|${cmus})_failed";
+}
+
+bundle agent set_classes(ctmp, cmus)
+{
+  classes:
+
+    "test_pass"
+      scope => "namespace",
+      and => {
+        "va_file_edit_template_${ctmp}_repaired",
+        "va_file_edit_template_${cmus}_repaired",
+        "va_file_remove_${ctmp}_repaired",
+        "va_file_remove_${cmus}_repaired"
+      };
+}

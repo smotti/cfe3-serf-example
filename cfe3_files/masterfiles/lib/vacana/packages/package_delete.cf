@@ -1,0 +1,27 @@
+bundle agent va_package_delete(package, promisee)
+# @depends  va_package_manage
+# @brief    Delete 'package' from system
+#
+# @classes  va_package_delete_${cpackage}_(kept|repaired|failed)
+#
+# NOTE: cpackage is canonify("${package}")
+#
+# @param package    Name of package to delete
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Delete given package via package manager";
+    "tags"     slist => { "packages", "vacana" };
+
+  vars:
+
+    "cpackage" string  => canonify("${package}");
+
+  methods:
+
+    "va_package_delete_${cpackage}"
+      comment   => "Delete ${package} from system via package manager",
+      handle    => "va_package_delete_methods_package_manage",
+      usebundle => va_package_manage("delete", "${package}", "${promisee}");
+}

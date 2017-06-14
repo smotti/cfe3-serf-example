@@ -1,0 +1,32 @@
+bundle agent va_file_remove(file, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Remove a 'file' from host
+#
+# @classes  va_file_remove_${cfile}_(kept|repaired|failed)
+#
+# NOTE: cfile is canonify("${file}")
+#
+# @param file       The file to remove
+# @param promisee   A promisee for this promise
+{
+  meta:
+    
+    "purpose" string => "Remove file from disk";
+    "tags"     slist => { "files", "vacana" };
+
+  vars:
+    
+    "class_prefix"
+      comment => "Prefix for promise outcome classes",
+      string  => canonify("va_file_remove_${file}");
+
+  files:
+
+    "${file}" -> { "${promisee}" }
+      comment => "Remove file ${file}",
+      handle  => "va_file_remove_files_remove",
+      action  => va_log_promise(
+        "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes => va_classes_generic("${class_prefix}"),
+      delete  => tidy;
+}

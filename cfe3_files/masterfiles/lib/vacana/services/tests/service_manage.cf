@@ -1,0 +1,201 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+
+  bundlesequence => { "test_c", "test_va_service_manage" };
+}
+
+bundle common test_c
+{
+  meta:
+
+    "purpose" string => "Common classes and vars for used by tests";
+    "tags"     slist => { "services", "test", "vacana" };
+
+  vars:
+
+    # TODO: Take a look at how it is named on other nix distros and handle that
+    #       accordingly with classes.
+    # TODO: Might be better to implement a dummy service.
+    "service"  string => "ssh";
+    "cservice" string => canonify("${service}");
+}
+
+bundle agent test_va_service_manage
+{
+  meta:
+
+    "purpose" string => "Test service bundles";
+    "tags"     slist => { "services", "test", "vacana" };
+
+  methods:
+
+    test_all|test_va_service_start::
+
+      "test_va_service_start"
+        comment   => "Test bundle va_service_start",
+        handle    => "test_va_service_manage_methods_test_start",
+        usebundle => test_va_service_start;
+
+    test_all|test_va_service_stop::
+
+      "test_va_service_stop"
+        comment   => "Test bundle va_service_stop",
+        handle    => "test_va_service_manage_methods_test_stop",
+        usebundle => test_va_service_stop;
+
+    test_all|test_va_service_reload::
+
+      "test_va_service_reload"
+        comment   => "Test bundle va_service_reload",
+        handle    => "test_va_service_manage_methods_test_reload",
+        usebundle => test_va_service_reload;
+
+    test_all|test_va_service_restart::
+
+      "test_va_service_restart"
+        comment   => "Test bundle va_service_restart",
+        handle    => "test_va_service_manage_methods_test_restart",
+        usebundle => test_va_service_restart;
+}
+
+bundle agent test_va_service_start
+{
+  meta:
+
+    "purpose" string => "Test bundle va_service_start";
+    "tags"     slist => { "services", "test", "vacana" };
+
+  vars:
+
+    "promisee" string => "test_va_service_start";
+
+  classes:
+
+    "test_pass" expression => classmatch(
+      "va_service_start_${test_c.service}_(kept|repaired)");
+
+  methods:
+
+    "test_va_service_start"
+      usebundle => va_service_start("${test_c.service}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_service_start"
+        ifvarclass => "test_pass";
+
+    any::
+
+      "FAIL: test_va_service_start - Failed to start service"
+        ifvarclass => "va_service_start_${test_c.cservice}_failed";
+}
+
+bundle agent test_va_service_stop
+{
+  meta:
+
+    "purpose" string => "Test bundle va_service_stop";
+    "tags"     slist => { "services", "test", "vacana" };
+
+  vars:
+
+    "promisee" string => "test_va_service_stop";
+
+  classes:
+
+    "test_pass" expression => classmatch(
+      "va_service_stop_${test_c.service}_(kept|repaired)");
+
+  methods:
+
+    "test_va_service_stop"
+      usebundle => va_service_stop("${test_c.service}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_service_stop"
+        ifvarclass => "test_pass";
+
+    any::
+
+      "FAIL: test_va_service_stop - Failed to stop service"
+        ifvarclass => "va_service_stop_${test_c.cservice}_failed";
+}
+
+bundle agent test_va_service_reload
+{
+# TODO: Check if service is actually running if not start it.
+  meta:
+
+    "purpose" string => "Test bundle va_service_reload";
+    "tags"     slist => { "services", "test", "vacana" };
+
+  vars:
+
+    "promisee" string => "test_va_service_reload";
+
+  classes:
+
+    "test_pass" expression => classmatch(
+      "va_service_reload_${test_c.service}_(kept|repaired)");
+
+  methods:
+
+    "test_va_service_reload"
+      usebundle => va_service_reload("${test_c.service}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_service_reload"
+        ifvarclass => "test_pass";
+
+    any::
+
+      "FAIL: test_va_service_reload - Failed to reload service"
+        ifvarclass => "va_service_reload_${test_c.cservice}_failed";
+}
+
+bundle agent test_va_service_restart
+{
+# TODO: Check if service is actually running if not start it.
+  meta:
+
+    "purpose" string => "Test bundle va_service_restart";
+    "tags"     slist => { "services", "test", "vacana" };
+
+  vars:
+
+    "promisee" string => "test_va_service_restart";
+
+  classes:
+
+    "test_pass" expression => classmatch(
+      "va_service_restart_${test_c.service}_(kept|repaired)");
+
+  methods:
+
+    "test_va_service_restart"
+      usebundle => va_service_restart("${test_c.service}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_service_restart"
+        ifvarclass => "test_pass";
+
+    any::
+
+      "FAIL: test_va_service_restart - Failed to restart service"
+        ifvarclass => "va_service_restart_${test_c.cservice}_failed";
+}

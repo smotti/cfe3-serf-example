@@ -1,0 +1,27 @@
+bundle agent va_file_aws_cmp_etag(bucket, key, old_etag, promisee)
+# @depends
+# @brief    Compare given etag with key etag
+#
+# @classes  va_file_aws_cmp_etag_${cbucket}_${ckey}_match
+{
+  meta:
+
+    "purpose" string => "Compare the given etag with the etag of the specified
+      file in the AWS S3 bucket";
+    "tags"    slist => { "files", "aws", "s3", "s3api", "vacana" };
+
+  vars:
+
+    "class_prefix" string => canonify("va_file_aws_cmp_etag_${bucket}_${key}");
+    "cmd_aws_head" string => "aws s3api head-object --bucket ${bucket} --key ${key}";
+    "head_object"  string => execresult("${cmd_aws_head}", "useshell");
+    "asjson_head"    data => parsejson("${head_object}");
+    "new_etag"       data => data_regextract(
+      "\"(?<etag>.*?)\"", "${asjson_head[ETag]}");
+
+  classes:
+
+    "${class_prefix}_match"
+      scope      => "namespace",
+      expression => strcmp(${new_etag[etag]}, ${old_etag});
+}

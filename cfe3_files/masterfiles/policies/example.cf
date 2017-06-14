@@ -1,0 +1,89 @@
+bundle common example
+{
+  classes:
+
+    "am_role_loadbalancer"
+      expression => classmatch("loadbalancer");
+    "am_role_app"
+      expression => classmatch("app_.*");
+    "serf_memberlist_exists"
+      expression => fileexists(${serf_memberlist});
+
+  vars:
+
+    "roles"
+      comment => "Path to roles directory",
+      string  => "${this.promise_dirname}/roles";
+    "inputs"
+      comment => "A list of policy files",
+      slist   => {
+        "${roles}/common/main.cf",
+        "${roles}/loadbalancer/main.cf",
+        "${roles}/app/main.cf", };
+    "bundles"
+      comment => "List of policy bundles to evaluate",
+      slist   => {
+        "example_common"
+        };
+    "cfg"
+      comment => "Global config",
+      data    => readdata("${this.promise_dirname}/example.json", "auto");
+    "eth_ip"
+      string => "${sys.ipv4[${def.eth}]}";
+    "policy_hubs"
+      comment => "A list of policy servers",
+      slist   => { "127.0.0.1" };
+    "role"
+      comment => "Default role. If that one is used something's wrong.",
+      string  => "CHANGEME";
+    "serf_memberlist"
+      string => "${sys.workdir}/state/member_list.json";
+    "node_ips"
+      comment => "Add load_balancer host as first ip to the list of node ips. This
+        list is used by serf to join the cluster.",
+      data    => '[ "${cfg[loadbalancer]}" ]';
+    "node_ips_str"
+      comment => "Just for debugging",
+      string  => format("%S", node_ips);
+
+    serf_memberlist_exists::
+      "members"
+        data => readdata(${serf_memberlist}, "auto");
+      "cfg"
+        comment => "Merge in the serf memberlist for easy access by other
+          bundles",
+        data    => mergedata("cfg", "members");
+      "merged_cfg_str" string => format("DEBUG: Global cfg: %S", cfg);
+
+      # A list of ips of all serf members
+      "all_nodes"             data => mergedata("cfg[_meta][hostvars]");
+      "all_nodes_str"       string => format("'%S'", all_nodes);
+      "filter"              string => "'keys'";
+      "ips"                   data => parsejson(
+        execresult("echo ${all_nodes_str} | ${def.jq} ${filter}", "useshell"));
+      "ips_str"      string => format("%S", ips);
+      "node_ips"       data => mergedata("node_ips", "ips");
+      "node_ips_str" string => format("%S", node_ips);
+
+    am_role_loadbalancer::
+      "role"    string => "loadbalancer";
+      "bundles"  slist => { @{bundles}, example_loadbalancer };
+    
+    am_role_app::
+      "role"    string => "app";
+      "bundles"  slist => { @{bundles}, example_app };
+
+  reports:
+
+    DEBUG::
+      "${merged_cfg_str}"
+        if => isvariable("merged_cfg_str");
+      "DEBUG: all_nodes: ${all_nodes_str}";
+      "DEBUG: ips: ${ips_str}";
+      "DEBUG: node_ips: ${node_ips_str}";
+}
+
+body file control
+{
+  inputs => { @{example.inputs} };
+}

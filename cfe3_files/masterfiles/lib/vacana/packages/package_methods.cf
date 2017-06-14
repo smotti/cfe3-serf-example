@@ -1,0 +1,86 @@
+bundle common va_package_methods_common
+{
+  vars:
+
+    "inputs"
+      slist => {
+        "${sys.libdir}/packages.cf",
+        "${sys.inputdir}/lib/vacana/paths.cf",
+      };
+}
+
+
+body file control
+{
+  inputs => { "@{va_package_methods_common.inputs}" };
+}
+
+
+bundle common va_gem_knowledge
+# @depends va_paths
+# @brief Common ruby gem knowledge bundle
+{
+  vars:
+
+    "call_gem" string => "${va_paths.path[gem]}";
+
+    "gem_list_name_regex"    string => "^([[:alnum:]-_]+)\s\([\d.]+\)";
+    "gem_list_version_regex" string => "^[[:alnum:]-_]+\s\(([\d.]+)\)";
+    "gem_installed_regex"    string => "^([[:alnum:]-_]+\s\([\d.]+\))";
+}
+
+
+body package_method va_gem(options)
+# @depends
+# @brief Ruby `gem` package management
+#
+# @param  options   Options passed to the gem command
+{
+  package_changes => "individual";
+
+  package_noverify_regex => "";
+
+  package_list_update_ifelapsed => "${common_knowledge.list_update_ifelapsed}";
+
+  package_list_name_regex    => "$(va_gem_knowledge.gem_list_name_regex)";
+  package_list_version_regex => "$(va_gem_knowledge.gem_list_version_regex)";
+  package_installed_regex    => "$(va_gem_knowledge.gem_installed_regex)";
+
+  package_name_convention    => "${name}";
+  package_delete_convention  => "${name}";
+
+  package_list_command   => "${va_gem_knowledge.call_gem} list --local";
+  package_add_command    => "${va_gem_knowledge.call_gem} install ${options}";
+  package_delete_command => "${va_gem_knowledge.call_gem} uninstall ${options}";
+  package_update_command => "${va_gem_knowledge.call_gem} update ${options}";
+  package_verify_command => "${va_gem_knowledge.call_gem} list --local ${options}";
+}
+
+
+body package_method va_pip(pip_path, flags)
+# @depends common_knowledge pip_knowledge
+#
+# Available commands : add, delete, (add)update, verify
+#
+# @param pip_path   Path to the pip executable to use
+# @param flags      The command line parameter passed to pip
+{
+  package_changes => "individual";
+
+  package_noverify_regex => "";
+
+  package_list_update_ifelapsed => "${common_knowledge.list_update_ifelapsed}"; 
+
+  package_list_name_regex    => "${pip_knowledge.pip_list_name_regex}";
+  package_list_version_regex => "${pip_knowledge.pip_list_version_regex}";
+  package_installed_regex    => "${pip_knowledge.pip_installed_regex}";
+
+  package_name_convention   => "${name}";
+  package_delete_convention => "${name}";
+
+  package_list_command   => "${pip_path} list ${flags}";
+  package_verify_command => "${pip_path} show ${flags}";
+  package_add_command    => "${pip_path} install ${flags}";
+  package_delete_command => "${pip_path} uninstall --yes ${flags}";
+  package_update_command => "${pip_path} install --upgrade ${flags}";
+}

@@ -1,0 +1,50 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+  bundlesequence => { "test_va_file_copy_remote" };
+}
+
+bundle agent test_va_file_copy_remote
+{
+  vars:
+    
+    "src"      string => "${sys.masterdir}/update.cf";
+    "dest"     string => "/tmp/update.cf";
+    "server"   string => "${sys.policy_hub}";
+    "promisee" string => "test_va_file_copy_remote";
+
+    "cdest" string => canonify("${dest}");
+
+  methods:
+    
+    test_all|test_files|test_va_file_copy_remote::
+      
+      "test_va_file_copy_remote_copy"
+        comment   => "Copy test file from server",
+        handle    => "test_va_file_copy_remote_copy",
+        usebundle => va_file_copy_remote(
+          "${src}", "${server}", "${dest}", "${promisee}");
+
+      "test_va_file_copy_remote_remove"
+        comment   => "Cleanup",
+        handle    => "test_va_file_copy_remote_cleanup",
+        usebundle => va_file_remove("${dest}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_file_copy_remote"
+        ifvarclass => "va_file_copy_remote_${cdest}_repaired.va_file_remove_${cdest}_repaired";
+
+    any::
+      
+      "FAIL: test_va_file_copy_remote - Failed to copy ${src} from ${server} to local ${dest}"
+        ifvarclass => "va_file_copy_remote_${cdest}_failed";
+
+      "FAIL: test_va_file_copy_remote - Cleanup failed"
+        ifvarclass => "va_file_remove_${cdest}_failed";
+}

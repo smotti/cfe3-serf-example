@@ -1,0 +1,245 @@
+# NOTE: Heavily modified, by removing things we don't need in our setup.
+############################################################################
+#  Copyright (C) CFEngine AS
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License LGPL as published by the
+#  Free Software Foundation; version 3.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  To the extent this program is licensed as part of the Enterprise
+#  versions of CFEngine, the applicable Commercial Open Source License
+#  (COSL) may apply to this file if you as a licensee so wish it. See
+#  included file COSL.txt.
+###########################################################################
+#
+# CFEngine Community Open Promise-Body Library
+#
+# This initiative started by CFEngine promotes a
+# standardized set of names and promise specifications
+# for template functionality within CFEngine 3.
+#
+# The aim is to promote an industry standard for
+# naming of configuration patterns, leading to a
+# de facto middleware of standardized syntax.
+#
+# Names should be intuitive and parameters should be
+# minimal to assist readability and comprehensibility.
+
+# Contributions to this file are voluntarily given to
+# the cfengine community, and are moderated by CFEngine.
+# No liability or warranty for misuse is implied.
+#
+# If you add to this file, please try to make the
+# contributions "self-documenting". Comments made
+# after the bundle/body statement are retained in
+# the online docs
+#
+
+# For CFEngine Core: 3.7.0 to 3.7.x
+# Services bodies
+
+###################################################
+# If you find CFEngine useful, please consider    #
+# purchasing a commercial version of the software.#
+###################################################
+
+bundle common services_common
+# @ignore
+{
+  vars:
+      "inputs" slist => { "$(this.promise_dirname)/common.cf", };
+}
+
+body file control
+# @ignore
+{
+      inputs => { @(services_common.inputs) };
+}
+
+##-------------------------------------------------------
+## service promises
+##-------------------------------------------------------
+
+##
+
+bundle agent standard_services(service,state)
+# @brief Standard services bundle, used by CFEngine by default
+# @author CFEngine AS
+# @param service Name of service to control
+# @param state The desired state for that service: "start", "restart", "reload", "stop", or "disable"
+#
+# This bundle is used by CFEngine if you don't specify a services
+# handler explicitly, and will work with systemd or chkconfig or other
+# non-sysvinit service managers. It will try to automate service
+# discovery, unlike `classic_services` which requires known service
+# names. If it can't do the automatic management, it will pass control
+# to `classic_services`.
+#
+# This bundle receives the service name and the desired service state,
+# then does the needful to reach the desired state.
+#
+# If you're running systemd, systemctl will be used.
+#
+# Else, if the service command is available, if will be used.
+#
+# Else, control is passed to `classic_services`.
+#
+# Note you do **not** have to call this bundle from `services`
+# promises. You can simply make a `methods` call to it. That would
+# enable you to use systemd states like `try-restart` for instance.
+#
+# **Example:**
+#
+# ```cf3
+# services:
+#     "sshd" service_policy => "start"; # uses `standard_services`
+#
+# methods:
+#     "" usebundle => standard_services("sshd", "start"); # direct
+# ```
+{
+  vars:
+      "call_systemctl"     string => "/bin/systemctl --no-ask-password --global --system";
+      "systemd_properties" string => "-pLoadState,CanStop,UnitFileState,ActiveState,LoadState,CanStart,CanReload";
+      "init"               string => "/etc/init.d/$(service)";
+      "c_service"          string => canonify("$(service)");
+      "paths_service"      string => "/usr/sbin/service"; # Note this is the debian path
+
+    systemd::
+      "systemd_service_info" slist => string_split(execresult("$(call_systemctl) $(systemd_properties) show $(service)", "noshell"), "\n", "10");
+
+  classes:
+      # define a class named after the desired state
+      "$(state)"      expression => "any";
+      "non_disabling"         or => { "start", "stop", "restart", "reload" };
+      "sysvservice"   expression => "!systemd.!chkconfig._stdlib_path_exists_service";
+      "have_init"     expression => fileexists($(init));
+
+    sysvservice.have_init::
+      "running" expression => returnszero("$(paths_service) $(service) status > /dev/null", "useshell");
+
+### BEGIN ###
+# @brief probe the state of a systemd service
+# @author Bryan Burke
+#
+# A collection of classes to determine the capabilities of a given systemd
+# service, then start, stop, etc. the service. Also supports a custom action
+# for anything not supported
+#
+    systemd::
+      "service_enabled"  expression => reglist(@(systemd_service_info), "UnitFileState=enabled");
+      "service_active"   expression => reglist(@(systemd_service_info), "ActiveState=active");
+      "service_loaded"   expression => reglist(@(systemd_service_info), "LoadState=loaded");
+      "service_notfound" expression => reglist(@(systemd_service_info), "LoadState=not-found");
+
+      "can_stop_service"   expression => reglist(@(systemd_service_info), "CanStop=yes");
+      "can_start_service"  expression => reglist(@(systemd_service_info), "CanStart=yes");
+      "can_reload_service" expression => reglist(@(systemd_service_info), "CanReload=yes");
+
+      "request_start"   expression => strcmp("start", "$(state)");
+      "request_stop"    expression => strcmp("stop", "$(state)");
+      "request_reload"  expression => strcmp("reload", "$(state)");
+      "request_restart" expression => strcmp("restart", "$(state)");
+
+      "action_custom"  expression => "!(request_start|request_stop|request_reload|request_restart)";
+      "action_start"   expression => "request_start.!service_active.can_start_service";
+      "action_stop"    expression => "request_stop.service_active.can_stop_service";
+      "action_reload"  expression => "request_reload.service_active.can_reload_service";
+      "action_restart"         or => {
+                                      "request_restart.service_active",
+
+                                      # Possibly undesirable... if a reload is
+                                      # requested, and the service "can't" be
+                                      # reloaded, then we restart it instead.
+                                      "request_reload.!can_reload_service.service_active",
+                                     };
+
+      # Starting a service implicitly enables it
+      "action_enable"  expression => "request_start.!service_enabled";
+
+      # Respectively, stopping it implicitly disables it
+      "action_disable" expression => "request_stop.service_enabled";
+
+  commands:
+    systemd.service_loaded:: # note this class is defined in `inventory/linux.cf`
+      # conveniently, systemd states map to `services` states, except
+      # for `enable`
+
+      "$(call_systemctl) -q start $(service)"
+        ifvarclass => "action_start";
+
+      "$(call_systemctl) -q stop $(service)"
+        ifvarclass => "action_stop";
+
+      "$(call_systemctl) -q reload $(service)"
+        ifvarclass => "action_reload";
+
+      "$(call_systemctl) -q restart $(service)"
+        ifvarclass => "action_restart";
+
+      "$(call_systemctl) -q enable $(service)"
+        ifvarclass => "action_enable";
+
+      "$(call_systemctl) -q disable $(service)"
+        ifvarclass => "action_disable";
+
+      # Custom action for any of the non-standard systemd actions such a
+      # status, try-restart, isolate, et al.
+      "$(call_systemctl) $(state) $(service)"
+        ifvarclass => "action_custom";
+
+### END systemd section ###
+
+    sysvservice.start.!running::
+      "$(paths_service) $(service) start"
+      handle => "standard_services_sysvservice_not_running_start",
+      classes => kept_successful_command,
+      comment => "If the service should be running and it is not
+                  currently running then we should issue the standard service
+                  command to start the service.";
+
+    sysvservice.restart::
+      "$(paths_service) $(service) restart"
+      handle => "standard_services_sysvservice_restart",
+      classes => kept_successful_command,
+      comment => "If the service should be restarted we issue the
+                  standard service command to restart or reload the service.
+                  There is no restriction based on the services current state as
+                  restart can start a service that was not already
+                  running.";
+
+    sysvservice.reload.running::
+      "$(paths_service) $(service) reload"
+      handle => "standard_services_sysvservice_reload",
+      classes => kept_successful_command,
+      comment => "If the service should be reloaded we issue the
+                  standard service command to reload the service.
+                  It is restricted to when the service is running as a reload
+                  should not start services that are not already running. This
+                  may not be triggered as service state parameters are limited
+                  and translated to the closest meaning.";
+
+    sysvservice.((stop|disable).running)::
+      "$(paths_service) $(service) stop"
+      handle => "standard_services_sysvservice_stop",
+      classes => kept_successful_command,
+      comment => "If the service should be stopped or disabled and it is
+                  currently running then we should issue the standard service
+                  command to stop the service.";
+
+  reports:
+    verbose_mode.systemd::
+      "$(this.bundle): using systemd layer to $(state) $(service)";
+    verbose_mode.systemd.!service_loaded::
+      "$(this.bundle): Service $(service) unit file is not loaded; doing nothing";
+    verbose_mode.sysvservice::
+      "$(this.bundle): using System V service / Upstart layer to $(state) $(service)";
+
+    systemd.service_notfound::
+        "$(this.bundle): Could not find service: $(service)";
+}

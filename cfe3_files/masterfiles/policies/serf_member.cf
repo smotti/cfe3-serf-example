@@ -1,0 +1,150 @@
+###############################################################################
+#
+# Policy for serf cluster member role.
+#
+###############################################################################
+
+
+bundle agent serf_member
+{
+  meta:
+
+    "purpose" string => "Ensure serf is present and memberlist is created";
+
+  methods:
+
+    "ensure serf"
+      comment   => "Ensure serf is present",
+      handle    => "serf_member_methods_ensure_serf",
+      usebundle => serf_member_ensure_serf;
+    "ensure memberlist"
+      comment    => "Ensure a memberlist of all members in the serf cluster is created",
+      depends_on => { "serf_member_methods_ensure_serf" },
+      usebundle  => serf_member_build_memberlist;
+}
+
+
+###############################################################################
+#
+# Add serf to the system with a proper service script and ensure it's started.
+#
+###############################################################################
+
+bundle agent serf_member_ensure_serf
+{
+  meta:
+
+    "purpose" string => "Ensure serf is present and started";
+
+  vars:
+
+    "svc"       string => "serf";
+    "bin_serf"  string => "/usr/local/bin/serf";
+    "files_bin"   data => 
+      '{ "bin_serf":
+          {"src": "${def.local_files}/common/usr_local_bin_serf",
+           "dst": "${bin_serf}"} }';
+    "files_cfg"   data => 
+        '[{"src": "${def.local_files}/common/etc_systemd_system_serf.service.mu",
+           "dst": "/etc/systemd/system/serf.service",
+           "method": "mustache"},
+          {"src": "${def.local_files}/common/usr_local_etc_serf.json.mu",
+           "dst": "/usr/local/etc/serf.json",
+           "method": "mustache"}]';
+
+    "fb"          slist => getindices("files_bin");
+    "fc"          slist => getindices("files_cfg");
+    "cfb[${fb}]" string => canonify("${files_bin[${fb}][dst]}");
+    "cfc[${fc}]" string => canonify("${files_cfg[${fc}][dst]}");
+    "svc_unit"   string => canonify("${files_cfg[0][dst]}");
+
+  classes:
+
+    "restart_serf"
+      or => {
+        classmatch(".*_file_copy_.*_${cfb[${fb}]}_repaired"),
+        classmatch(".*_edit_template_${cfc[${fc}]}_repaired") };
+
+  methods:
+
+    "ensure serf bin is present"
+      usebundle => va_file_copy_local(
+        "${files_bin[${fb}][src]}", "${files_bin[${fb}][dst]}",
+        "${this.bundle}");
+    "ensure systemd service unit is present"
+      usebundle => va_file_edit_template(
+        "${files_cfg[${fc}][src]}", "${files_cfg[${fc}][dst]}",
+        "${files_cfg[${fc}][method]}", "${this.bundle}");
+    "ensure systemd reload"
+      usebundle => va_systemctl("daemon-reload", "${this.bundle}"),
+      if        => or(classmatch(".*_edit_template_${svc_unit}_repaired"));
+    "ensure serf bin perms"
+      usebundle => va_file_perms(
+        "${bin_serf}", "0750", "root", "adm", "${this.bundle}");
+
+    !restart_serf::
+    
+      "ensure serf is started"
+        usebundle => va_service_start("${svc}", "${this.bundle}");
+
+    restart_serf::
+
+      "ensure serf is restarted"
+        usebundle => va_service_restart("${svc}", "${this.bundle}");
+}
+
+###############################################################################
+#
+# Bundle(s) to create a list of hosts within a serf cluster.
+#
+###############################################################################
+
+bundle agent serf_member_build_memberlist
+{
+  meta:
+
+    "purpose" string => "Build memberlist of serf cluster";
+
+  vars:
+
+    "build_script"
+      comment => "Path to the script that creates the member list",
+      string  => "${sys.workdir}/modules/serf-members.py";
+    "serf_bin"
+      comment => "Path to the serf binary",
+      string  => "/usr/local/bin/serf";
+    "members_file"
+      comment => "Path where the member list is stored",
+      string  => "${sys.workdir}/state/member_list.json";
+    "codes_kept"     slist => { "0" };
+    "codes_repaired" slist => { "" };
+    "codes_failed"   slist => { "1" };
+
+#    member_list_exists::
+#
+#      "member_list"
+#        comment => "Parsed json member list",
+#        data    => readjson("${members_file}", 9999999);
+
+#  classes:
+#
+#    "serf_member_list_exists"
+#      comment    => "Check if ${members_file} exists",
+#      scope      => "namespace",
+#      expression => fileexists("${members_file}");
+
+  methods:
+
+    "set perms"
+      comment    => "Set proper permissions for the build script",
+      usebundle  => va_file_perms(
+        "${build_script}", "750", "root", "root", "${this.bundle}"
+      );
+    "build list"
+      comment => "Build the memberlist",
+      usebundle => va_command_in_shell_and_silent(
+        "${build_script} -s ${serf_bin} > ${members_file}",
+        "@{codes_kept}", "@{codes_repaired}", "@{codes_failed}",
+        "${this.bundle}"
+      );
+}

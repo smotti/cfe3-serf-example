@@ -1,0 +1,57 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+
+  bundlesequence => { "test_va_file_perms" };
+}
+
+bundle agent test_va_file_perms
+{
+  meta:
+
+    "purpose" string => "Test bundle va_file_perms.";
+    "tags"     slist => { "files", "test", "vacana" };
+    
+  vars:
+
+    "promisee" string => "test_va_file_perms";
+    "mode"     string => "0600";
+    "owner"    string => "nobody";
+    "group"    string => "adm";
+    "file"     string => "/tmp/test_perms";
+
+    "cfile" string => canonify("${file}");
+
+  files:
+
+    "${file}" -> { "${promisee}" }
+      comment => "Create test file to test va_file_perms bundle",
+      handle  => "test_va_file_perms_files_test_perms",
+      classes => if_notkept("create_test_file_failed"),
+      create  => "true";
+
+  methods:
+
+    "test_va_file_perms"         usebundle => va_file_perms(
+      "${file}", "${mode}", "${owner}", "${group}", "${promisee}");
+    "test_va_file_perms_cleanup" usebundle => va_file_remove(
+      "${file}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_file_perms"
+        ifvarclass => "va_file_perms_${cfile}_repaired.va_file_remove_${cfile}_repaired";
+
+    any::
+
+      "FAIL: test_va_file_perms - Failed to create testfile."
+        ifvarclass => "create_test_file_failed";
+
+      "FAIL: test_va_file_perms - Failed to cleanup."
+        ifvarclass => "va_file_remove_${cfile}_failed";
+}

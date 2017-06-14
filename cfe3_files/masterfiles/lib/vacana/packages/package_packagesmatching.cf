@@ -1,0 +1,41 @@
+bundle agent va_package_packagesmatching(regexp)
+# @depends
+# @brief    Check if given package name regex matches any entry in
+#           /var/cfengine/state/software_packages.csv, 
+#
+# @classes  ${cregexp}_matched
+#
+# NOTE: cregexp is canonify("${regexp}")
+#
+# @param regexp    Regular expression of package names to match
+{
+  meta:
+
+    "purpose" string => "Check if regexp matches any package name";
+    "tags"     slist => { "packages", "vacana" };
+
+  vars:
+
+    "cregexp" 
+      comment => "Canonified version of the regexp",
+      string  => canonify("${regexp}");
+    "packages"
+      comment => "Search for matches",
+      data    => packagesmatching("${regexp}", ".*", ".*", ".*");
+    "i"
+      comment => "Index for packages data struct",
+      slist   => getindices("packages");
+    "length"
+      comment => "Number of matched packages",
+      int     => length("i");
+
+  classes:
+
+    "matched_packages" expression => isgreaterthan("${length}", "0");
+
+    matched_packages::
+
+      "${cregexp}_matched" 
+        scope      => "namespace",
+        expression => "any";
+}

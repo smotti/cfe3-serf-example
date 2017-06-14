@@ -1,0 +1,38 @@
+bundle agent va_file_edit_template(tmpl, dest, method, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Edit a local 'tmpl' and render it at as 'dest', using the template
+#           method 'method'
+#
+# @classes  va_file_edit_template_${cdest}_(kept|repaired|failed)
+#
+# NOTE: cdest is canonify("${dest}")
+#
+# @param tmpl       The local template to use for rendering
+# @param dest       The destination of the rendered file
+# @param method     The template method to use: cfengine or mustache
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Render a template file of type method at dest";
+    "tags" slist     => { "files", "vacana" };
+
+  vars:
+  
+    "class_prefix"
+      comment => "Prefix promise outcome classes with this",
+      string  => canonify("va_file_edit_template_${dest}");
+
+  files:
+
+    "${dest}" -> { "${promisee}" }
+      comment         => "Render ${tmpl} of type ${method} at ${dest}",
+      handle          => "va_file_edit_template_files_render",
+      action          => va_log_promise(
+        "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes         => va_classes_generic("${class_prefix}"),
+      create          => "true",
+      template_method => "${method}",
+      edit_defaults   => empty,
+      edit_template   => "${tmpl}";
+}

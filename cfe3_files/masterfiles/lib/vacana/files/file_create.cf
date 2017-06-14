@@ -1,0 +1,32 @@
+bundle agent va_file_create(file, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Create 'file' on filesystem
+#
+# @classes  va_file_create_${cfile}_(kept|repaired|failed)
+#
+# NOTE: cfile is canonify("${file}")
+#
+# @param file       The file to create. Append '/.' to make it a dir.
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Create a file on the system";
+    "tags"     slist => { "files", "vacana" };
+
+  vars:
+
+    "class_prefix"
+      comment => "Prefix for promise outcome classes",
+      string  => canonify("va_file_create_${file}");
+
+  files:
+
+    "${file}" -> { "${file}" }
+      comment => "Create file ${file} on the system",
+      handle  => "va_file_create_files_create_file",
+      action  => va_log_promise(
+        "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes => va_classes_generic("${class_prefix}"),
+      create  => "true";
+}

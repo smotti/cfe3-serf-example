@@ -1,0 +1,28 @@
+bundle agent va_package_pip3_delete(module, flags, promisee)
+# @depends  va_package_pip_manage
+# @brief    Ensure that 'module' is not present on the system using pip for python3
+#
+# @classes  va_package_pip_delete_${cmodule}_(kept|repaired|failed)
+#
+# @param module     Name of the module to delete from the system
+# @param flags      Command flags passed to the pip command
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Delete a given module via python package manager pip from the system";
+    "tags"     slist => { "packages", "python", "pip", "module", "vacana" };
+
+  vars:
+
+    "cmodule" string => canonify("${module}");
+
+  methods:
+
+    "va_package_pip3_delete_${cmodule}"
+      comment   => "Delete python ${module} from the system",
+      handle    => "va_package_pip3_delete_methods_package_pip_manage",
+      usebundle => va_package_pip_manage(
+        "delete", "${module}", "${flags}", "${va_paths.path[pip3]}", "${promisee}"
+      );
+}

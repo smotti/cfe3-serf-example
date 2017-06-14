@@ -1,0 +1,28 @@
+bundle agent va_package_pip3_verify(module, flags, promisee)
+# @depends  va_package_pip_manage
+# @brief    Verify that the 'module' is present
+#
+# @classes  va_package_pip_verify_${cmodule}_(kept|failed)
+#
+# @param module     Name of the module to verify
+# @param flags      Command flags passed to the pip command
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Verify if the python module is present";
+    "tags"     slist => { "packages", "python", "pip", "module", "vacana" };
+
+  vars:
+
+    "cmodule" string => canonify("${module}");
+
+  methods:
+
+    "va_package_pip3_verify_${cmodule}"
+      comment   => "Verify if ${module} is present",
+      handle    => "va_package_pip3_verify_methods_package_pip_manage",
+      usebundle => va_package_pip_manage(
+        "verify", "${module}", "${flags}", "${va_paths.path[pip3]}", "${promisee}"
+      );
+}

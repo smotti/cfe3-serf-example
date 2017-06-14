@@ -1,0 +1,23 @@
+bundle agent va_service_reload(service, promisee)
+# @depends  va_service_manage
+# @brief    Ensure 'service' is being reloaded (reload his configuration)
+#
+# @classes  va_service_reload_${cservice}_(kept|repaired|failed)
+#
+# NOTE: cservice is canonify("${service}")
+#
+# @param service    Service to reload
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Ensure that service reloads his configuration";
+    "tags"     slist => { "services", "vacana" };
+
+  methods:
+
+    "va_service_reload"
+      comment   => "Reload ${service}",
+      handle    => "va_service_reload_methods_manage",
+      usebundle => va_service_manage("reload", "${service}", "${promisee}");
+}

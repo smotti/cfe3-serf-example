@@ -1,0 +1,33 @@
+bundle agent va_file_copy_local(src, dest, promisee)
+# @depends  va_log_promise va_classes_generic
+# @brief    Copy 'src' to 'dest' on local host
+#
+# @classes  va_file_copy_local_${cdest}_(kept|repaired|failed)
+#
+# NOTE: cdest is canonify("${dest}")
+#
+# @param src      The source file to copy
+# @param dest     The destination to copy the file to
+# @param promisee A promisee for this files promise
+{
+  meta:
+    
+    "purpose" string => "Copy a local file from src to dest";
+    "tags"     slist => { "files", "vacana" };
+
+  vars:
+
+    "class_prefix"
+      comment => "Prefix promise outcome classes",
+      string  => canonify("va_file_copy_local_${dest}");
+
+  files:
+
+    "${dest}" -> { "${promisee}" }
+      comment   => "Copy ${src} to ${dest}",
+      handle    => "va_file_copy_local_files_copy",
+      action    => va_log_promise(
+	      "${class_prefix}", "${this.handle}", "${this.promiser}", "${promisee}"),
+      classes   => va_classes_generic("${class_prefix}"),
+      copy_from => local_dcp("${src}");
+}

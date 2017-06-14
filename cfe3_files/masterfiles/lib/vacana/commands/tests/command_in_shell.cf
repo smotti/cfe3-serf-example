@@ -1,0 +1,51 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+
+  bundlesequence => { "test_va_command_in_shell" };
+}
+
+bundle agent test_va_command_in_shell
+{
+  meta:
+
+    "purpose" string => "Test bundle va_command_in_shell";
+    "tags"     slist => { "commands", "test", "vacana"};
+
+  vars:
+
+    "command"   string => "/bin/echo hello";
+    "codes"       data => parsejson(
+      '{ "kept": "0", "repaired": "0", "failed": "1" }'
+    );
+    "promisee"  string => "test_va_command_in_shell";
+
+    "ccommand"   string => canonify("${command}");
+
+  classes:
+
+    "test_pass" expression => classmatch(
+      "va_command_in_shell_${ccommand}_(kept|repaired)");
+
+  methods:
+
+    "test_va_command_in_shell_run"
+      comment   => "Call bundle for test",
+      handle    => "test_va_command_in_shell_methods_run_bundle",
+      usebundle => va_command_in_shell("${command}", "@{codes}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_command_in_shell"
+        ifvarclass => "test_pass";
+
+    any::
+
+      "FAIL: test_va_command_in_shell - commands promise failed"
+        ifvarclass => "va_command_in_shell_${ccommand}_failed";
+}

@@ -1,0 +1,289 @@
+###############################################################################
+#
+# va_pre_promises_report
+#
+# - Checks if required directories exit
+# - Performs some cleanup of old files
+#
+###############################################################################
+
+bundle agent va_pre_promises_report
+{
+  meta:
+
+    "purpose" string => "Prerequisites for promises_report";
+    "tags"     slist => { "report", "vacana" };
+
+  classes:
+
+    any::
+
+      "dir_vacana_exists" and => {
+        fileexists("${va_c.va_logs}"),
+        isdir("${va_c.va_logs}")
+      };
+      "promise_log_exists" expression => fileexists("${va_c.promise_log}");
+      "delete_once" 
+        scope      => "namespace",
+        expression => "any";
+
+    am_policy_hub::
+
+      "dir_for_client_logs_exists" and => {
+        fileexists("${va_c.client_logs}"),
+        isdir("${va_c.client_logs}")
+      };
+
+  files:
+
+    !dir_vacana_exists::
+
+      "${va_c.va_logs}/." -> { "vacana" }
+        comment  => "Create directory ${va_c.va_logs} for vacana logs/reports",
+        handle   => "va_pre_promises_report_files_create_va_logs",
+        create   => "true";
+
+    dir_vacana_exists::
+
+      "${va_c.promise_log}" -> { "vacana" }
+        comment    => "Delete old ${va_c.promise_log}",
+        handle     => "va_pre_promises_report_files_delete_promise_log",
+        ifvarclass => "promise_log_exists",
+        delete     => tidy;
+
+    am_policy_hub.!dir_for_client_logs_exists::
+
+      "${va_c.client_logs}/." -> { "vacana" }
+        comment => "Create directory ${va_c.client_logs} to store logs from nodes",
+        handle  => "va_pre_promises_report_files_create_client_logs",
+        create  => "true";
+}
+
+
+###############################################################################
+#
+# va_promises_report
+#
+# - Read promises.log, separator is ';'
+# - Canonify promiser
+# - Use reports promise type to report to file
+# - Use reports promise type to loop over promisers with ifvarclass to check
+#   outcome and report accordingly
+#
+###############################################################################
+
+bundle agent va_promises_report
+{
+  meta:
+    
+    "purpose" string => "Read promises.log parse it, check outcome of promise
+      and write result to promises_outcome.log";
+    "tags" slist     => { "report", "vacana" };
+
+  vars:
+
+    promise_log_exists::
+
+      "params"
+        comment => "Fields in promises.log",
+        data    => parsejson(
+	        '{
+              "0": "prefix",
+              "1": "handle",
+	            "2": "promiser",
+	            "3": "promisee"
+	        }'
+        );
+  
+      "p"
+        comment => "Params indices",
+        slist   => getindices("params");
+  
+      "read"
+        comment => "Read ${va_c.promise_log} into an array",
+        int => readstringarrayidx(
+	        "promises",
+	        "${va_c.promise_log}",
+	        "",
+	        "${va_c.log_delim}",
+	        "${va_c.max_num}",
+	        "${va_c.max_bytes}"
+        );
+
+      "i"
+        comment => "Index csv file",
+        slist   => getindices("promises");
+
+      # Note: This one is copied from efl lib.
+      "d[${i}][${params[${p}]}]"
+        comment => "Make final data set",
+        string  => "${promises[${i}][${p}]}";
+
+  any::
+
+    "all_classes"
+      comment => "Get a list of all defined classes",
+      slist   => classesmatching(".*");
+
+  classes:
+
+    "promise_log_exists" expression => fileexists("${va_c.promise_log}");
+
+  methods:
+
+    "cleanup"
+      comment   => "Remove old reports first",
+      usebundle => va_promises_report_cleanup;
+
+  reports:
+
+    "${all_classes}"
+      report_to_file => "${va_c.classes_log}";
+
+    promise_log_exists::
+
+      "${d[${i}][prefix]}; ${d[${i}][handle]}; ${d[${i}][promiser]}; ${d[${i}][promisee]}; kept"
+        comment        => "If promise of promiser was kept",
+        handle         => "va_promises_report_reports_log_kept",
+        ifvarclass     => "${d[${i}][prefix]}_kept",
+        report_to_file => "${va_c.outcome_log}";
+
+      "${d[${i}][prefix]}; ${d[${i}][handle]}; ${d[${i}][promiser]}; ${d[${i}][promisee]}; repaired"
+        comment        => "If promise of promiser was repaired",
+        handle         => "va_promises_report_reports_log_repaired",
+        ifvarclass     => "${d[${i}][prefix]}_repaired",
+        report_to_file => "${va_c.outcome_log}";
+
+      "${d[${i}][prefix]}; ${d[${i}][handle]}; ${d[${i}][promiser]}; ${d[${i}][promisee]}; failed"
+        comment        => "If promise of promiser was failed",
+        handle         => "va_promises_report_reports_log_failed",
+        ifvarclass     => "${d[${i}][prefix]}_failed",
+        report_to_file => "${va_c.outcome_log}";
+}
+
+
+bundle agent va_promises_report_cleanup
+{
+  classes:
+
+    "outcome_log_exists" expression => fileexists("${va_c.outcome_log}");
+    "classes_log_exists" expression => fileexists("${va_c.classes_log}");
+
+  files:
+
+    outcome_log_exists::
+
+      "${va_c.outcome_log}" -> { "vacana" }
+        comment    => "Delete old ${va_c.outcome_log}",
+        handle     => "va_promises_report_cleanup_files_delete_outcome_log",
+        delete     => tidy;
+
+    classes_log_exists::
+
+      "${va_c.classes_log}" -> { "vacana" }
+        comment    => "Delete old ${va_c.classes_log}",
+        handle     => "va_promises_report_cleanup_files_delete_classes_log",
+        delete     => tidy;
+}
+
+
+###############################################################################
+#
+# va_post_promises_report
+#
+###############################################################################
+
+bundle agent va_post_promises_report
+{
+
+  classes:
+
+    "promise_log_exists" expression => fileexists("${va_c.promise_log}");
+
+  files:
+
+    promise_log_exists::
+
+      "${va_c.promise_log}"
+        depends_on => {
+          "va_post_promises_report_methods_generate_promises_report"
+        },
+        delete     => tidy;
+
+  methods:
+
+    any::
+
+      "generate promises report"
+        handle    => "va_post_promises_report_methods_generate_promises_report",
+        usebundle => va_promises_report;
+
+    am_policy_hub.va_get_client_promises_report::
+
+      "fetch report from clients"
+        usebundle => va_get_client_promises_report;
+}
+
+###############################################################################
+#
+# va_get_client_promises_report
+#
+# - Fetch promises reports from clients
+#
+# NOTE: This is only recommended for small infrastructures, on very large
+#       infrastructures this can lead to large amounts of small disk I/Os on
+#       the hub and thus cause a huge decrease in performance (see inventory
+#       bundle for more info).
+#
+###############################################################################
+
+bundle agent va_get_client_promises_report
+{
+  meta:
+
+    "purpose" string => "Fetch promise outcome log from lastseen clients";
+    "tags"     slist => { "report", "vacana" };
+
+  vars:
+
+    am_policy_hub::
+
+      "client_logs"
+        comment => "Path to where the client logs will be stored",
+        handle  => "va_get_client_promises_report_vars_client_logs",
+        string  => "${va_c.client_logs}";
+
+      "lastseen"
+        comment => "List of lastseen clients during the last hour",
+        handle  => "va_get_client_promises_report_vars_lastseen",
+        slist   => {
+          hostsseen("1", "lastseen", "address"),
+          "${sys.policy_hub}" };
+
+  methods:
+
+    am_policy_hub::
+    
+      "get_promises_reports"
+        comment   => "Fetch logs in the background",
+        action    => bg("5", "5"),
+        usebundle => bg_get_client_promises_report(
+          "${client_logs}", "${lastseen}");
+}
+
+bundle agent bg_get_client_promises_report(dir, client)
+{
+  files:
+
+    "${dir}/${client}-outcome.log" -> { "vacana" }
+      comment   => "Download client promise outcome log",
+      handle    => "va_bg_get_client_promises_report_outcome_log",
+      perms     => m("600"),
+      copy_from => secure_cp("${va_c.outcome_log}", "${client}");
+
+    "${dir}/${client}-classes.log" -> { "vacana" }
+      comment   => "Download client classes log",
+      handle    => "va_bg_get_client_promises_report_classes_log",
+      perms     => m("600"),
+      copy_from => secure_cp("${va_c.classes_log}", "${client}");
+}

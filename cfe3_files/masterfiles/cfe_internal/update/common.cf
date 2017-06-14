@@ -1,0 +1,83 @@
+body process_select by_name( command_regex )
+{
+   command        => "${command_regex}";
+   process_result => "command";
+}
+
+body perms mog(mode,user,group)
+{
+   owners => { "$(user)" };
+   groups => { "$(group)" };
+   mode   => "$(mode)";
+}
+
+body copy_from local_cp(from)
+{
+  source => "${from}";
+}
+
+body copy_from local_dcp(from)
+{
+  source   => "${from}";
+  compare  => "digest";
+}
+
+body copy_from secure_cp(from,server)
+{
+   source      => "$(from)";
+   servers     => { "$(server)" };
+   compare     => "digest";
+   encrypt     => "true";
+   verify      => "true";
+}
+
+body copy_from secure_sync(from,server)
+{
+   source      => "$(from)";
+   servers     => { "$(server)" };
+   compare     => "digest";
+   purge       => "true";
+   type_check  => "false";
+   encrypt     => "true";
+   verify      => "true";
+}
+
+body classes if_repaired(x)
+{
+   promise_repaired => { "$(x)" };
+}
+
+body depth_search recurse(d)
+{
+depth => "$(d)";
+xdev  => "true";
+}
+
+body contain in_shell
+{
+  useshell => "true";
+}
+
+body contain in_shell_and_silent
+{
+  useshell  => "true";
+  no_output => "true";
+}
+
+body classes kept_successful_command
+{
+  kept_returncodes => { "0" };
+}
+
+body classes if_notkept(x)
+{
+  repair_failed   => { "${x}" };
+  repair_denied   => { "${x}" };
+  repair_timeout  => { "${x}" };
+}
+
+body file_select not_tools
+{
+  path_name   => { "/var/cfengine/inputs/((?!tools).)*/.*" };
+  file_result => "path_name";
+}

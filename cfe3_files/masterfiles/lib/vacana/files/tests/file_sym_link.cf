@@ -1,0 +1,53 @@
+body common control
+{
+  inputs => {
+    "${sys.libdir}/stdlib.cf",
+    "${sys.inputdir}/lib/vacana/lib.cf",
+  };
+
+  bundlesequence => { "test_va_file_sym_link" };
+}
+
+bundle agent test_va_file_sym_link
+{
+  meta:
+
+    "purpose" string => "Test bundle va_file_sym_link";
+    "tags"     slist => { "files", "test", "vacana" };
+
+  vars:
+
+    "promisee"  string => "test_va_file_sym_link";
+    "link_name" string => "/tmp/test_va_file_sym_link";
+    "target"    string => "/var/log";
+
+    "clink_name" string => canonify("${link_name}");
+
+  classes:
+
+    "test_success" and => {
+      classmatch("va_file_sym_link_${clink_name}_(kept|repaired)"),
+      classmatch("va_file_remove_${clink_name}_(kept|repaired)")
+    };
+
+  methods:
+
+    "run test" usebundle => va_file_sym_link(
+      "${target}", "${link_name}", "${promisee}");
+    "cleanup"  usebundle => va_file_remove("${link_name}", "${promisee}");
+
+  reports:
+
+    test_verbose::
+
+      "PASS: test_va_file_sym_link"
+        ifvarclass => "test_success";
+
+    any::
+
+      "FAIL: test_va_file_sym_link - Failed to create symbolic link ${link_name} to target ${target}"
+        ifvarclass => "va_file_sym_link_${clink_name}_failed";
+
+      "FAIL: test_va_file_sym_link - Failed to cleanup"
+        ifvarclass => "va_file_remove_${clink_name}_failed";
+}

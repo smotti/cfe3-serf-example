@@ -1,0 +1,10 @@
+{
+  "vars": {
+    "eth": "eth1",
+    "acl": [ "127.0.0.1" ],
+    "trustkeysfrom": [],
+    "local_files": "${sys.inputdir}/local_files",
+    "tools": [ "update_masterfiles.sh", "va_generate_report.py" ],
+    "jq": "/usr/bin/jq -c"
+  },
+}

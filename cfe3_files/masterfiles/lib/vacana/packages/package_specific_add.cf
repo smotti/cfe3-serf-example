@@ -1,0 +1,27 @@
+bundle agent va_package_specific_add(package, version, arch, promisee)
+# @depends  va_package_specific_manage
+# @brief    Adds 'package' with 'version' and 'arch' to the system
+#
+# @classes  va_package_specific_add_${cpackage}_(kept|repaired|failed)
+#
+# NOTE: cpackage means it's the canonified version of the package var
+#
+# @param package    Name of the package to install, can be path to a file
+# @param version    Version string of the package
+# @param arch       Architecture of the package: 
+#                   i386, amd64 (at least for debian)
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Add a specific package to the system";
+    "tags"     slist => { "packages", "vacana" };
+
+  methods:
+
+    "va_package_specific_add"
+      comment   => "Ensure package is in desired state",
+      handle    => "va_package_specific_methods_package_add",
+      usebundle => va_package_specific_manage(
+        "add", "${package}", "${version}", "${arch}", "${promisee}");
+}

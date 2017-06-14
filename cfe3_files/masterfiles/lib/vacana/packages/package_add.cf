@@ -1,0 +1,27 @@
+bundle agent va_package_add(package, promisee)
+# @depends  va_package_manage
+# @brief    Add 'package' to the system
+#
+# @classes  va_package_add_${cpackage}_(kept|repaired|failed)
+#
+# NOTE: cpackage is canonify("${package}")
+#
+# @param package    Name of the package to add to the system
+# @param promisee   A promisee for this promise
+{
+  meta:
+
+    "purpose" string => "Add given package via package manager";
+    "tags"     slist => { "packages", "vacana" };
+
+  vars:
+
+    "cpackage" string => canonify("${package}");
+
+  methods:
+
+    "va_package_add_${cpackage}"
+      comment   => "Add ${package} to system via package manager",
+      handle    => "va_package_add_methods_package_manage",
+      usebundle => va_package_manage("add", "${package}", "${promisee}");
+}

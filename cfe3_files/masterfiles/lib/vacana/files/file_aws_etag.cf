@@ -1,0 +1,30 @@
+bundle agent va_file_aws_etag(bucket, key, dst, promisee)
+# @param bucket A AWS S3 bucket
+# @param key    A AWS S3 object within the specified bucket
+# @param dst    Path to a file to which to write the ETag of key
+{
+  meta:
+
+    "purpose" string => "Write etag of s3://bucket/key to dst";
+    "tags"    slist => { "files", "aws", "s3", "s3api", "vacana" };
+
+  vars:
+
+    "class_prefix" string => canonify("va_file_aws_etag_${bucket}_${key}");
+    "cmd_aws_head" string => "aws s3api head-object --bucket ${bucket} --key ${key}";
+    "head_object"  string => execresult("${cmd_aws_head}", "useshell");
+    "asjson_head"    data => parsejson("${head_object}");
+    "etag"           data => data_regextract(
+      "\"(?<etag>.*?)\"", "${asjson_head[ETag]}");
+
+  files:
+
+    "${dst}"
+      handle        => "va_file_aws_etag_create",
+      action        => va_log_promise(
+        ${class_prefix}, ${this.handle}, ${this.promiser}, ${promisee}),
+      classes       => va_classes_generic(${class_prefix}),
+      create        => "true",
+      edit_line     => insert_lines(${etag[etag]}),
+      edit_defaults => empty;
+}

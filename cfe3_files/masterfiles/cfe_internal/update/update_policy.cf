@@ -1,0 +1,168 @@
+bundle agent cfe_internal_update_policy
+{
+  meta:
+
+    "purpose" string => "Update cfengine files";
+
+  methods:
+
+    !daily_inputs_sync_with_purge::
+      "Download manifest"
+        handle     => "main_methods_download_manifest",
+        usebundle  => download_manifest("${update_def.inputs_manifest}");
+
+      "Update inputs and modules"
+        handle     => "main_methods_inputs",
+        depends_on => { "main_methods_download_manifest" },
+        usebundle  => inputs_and_modules ( "${sys.inputdir}/${update_def.inputs_manifest}" );
+
+    daily_inputs_sync_with_purge::
+      "Recurse inputs copy with purge"
+        handle     => "main_methods_inputs_purge",
+        usebundle  => inputs_purge;
+}
+
+
+bundle agent download_manifest( ref )
+{
+  meta:
+
+    "purpose" string => "Download inputs manifest file";
+
+  files:
+
+    "${sys.workdir}/inputs/${ref}"
+      handle    => "download_manifest_files_inputs_manifest",
+      perms     => mog( "600", "root", "root" ),
+      copy_from => secure_cp(
+        "${sys.masterdir}/${ref}", "@{update_def.policy_servers}");
+
+  reports:
+
+    DEBUG::
+
+      "DEBUG: Download inputs manifest file ${sys.workdir}/inputs/${ref}";
+}
+
+
+bundle agent inputs_purge
+{
+  meta:
+
+    "purpose" string => "Do a full sync of inputs with purging on.";
+
+  files:
+
+    "${sys.workdir}/inputs/"
+      handle       => "inputs_purge_files_inputs",
+      perms        => mog( "600", "root", "root" ),
+      classes      => if_repaired( "restart_cfengine" ),
+      depth_search => recurse( "inf" ),
+      copy_from    => secure_sync(
+        "${sys.masterdir}", "@{update_def.policy_servers}");
+
+  reports:
+
+    DEBUG::
+
+      "DEBUG: Purged ${sys.workdir/inputs}"
+        if => "restart_cfengine";
+}
+
+
+bundle agent inputs_and_modules( ref )
+{
+  meta:
+
+    "purpose" string => "Download inputs determined by manifest file.";
+
+  vars:
+
+    "comment"
+      comment => "Comment string in manifest.txt",
+      string  => "\s*#[^\n]*";
+
+    "array_delimiter"
+      comment => "Field delimiter for CSV data files read by data_readstringarrayidx",
+      string  => "\s*;;\s*";
+
+    "max_num"
+      comment => "Maximum number of lines to read from data file",
+      int     => "500";
+
+    "max_bytes"
+      comment => "Maximum number of bytes to read from data file",
+      string  => "1M";
+
+    "manifest"
+      comment => "Read data file for parsing.",
+      data    => data_readstringarrayidx(
+        "${ref}",
+        "${comment}",
+        "${array_delimiter}",
+        "${max_num}",
+        "${max_bytes}");
+
+    "i"
+      comment => "Get index json loaded above.",
+      slist   => getindices( "manifest" );
+
+    "manifest_file_canon[${i}]"
+      comment => "Canonify for later use",
+      string  => canonify( "${manifest[${i}][0]}" );
+
+    "manifest_file[${i}]"
+      comment => "Turn into reference for simpler reading.",
+      string  => "manifest[${i}][0]";
+
+    "manifest_md5sum[${i}]"
+      comment => "Turn into reference for simpler reading.",
+      string  => "manifest[${i}][1]";
+
+  classes:
+
+    "download_${manifest_file_canon[${i}]}"
+      comment => "Set download class if file is missing.",
+      not     => fileexists( "${sys.workdir}/inputs/${${manifest_file[${i}]}}" );
+
+    "download_${manifest_file_canon[${i}]}"
+      comment => "Set download class if file checksum does not match manifest.",
+      not     => hashmatch(
+        "${sys.workdir}/inputs/${${manifest_file[${i}]}}",
+        "md5",
+        "${${manifest_md5sum[${i}]}}");
+
+  files:
+
+    "${sys.inputdir}/${${manifest_file[${i}]}}"
+      handle     => "inputs_and_modules_files_inputs_download",
+      comment    => "Download file shown to be new by the mainfest",
+      ifvarclass => "download_${manifest_file_canon[${i}]}",
+      classes    => if_repaired( "restart_cfengine" ),
+      copy_from  => secure_cp(
+        "${sys.masterdir}/${${manifest_file[${i}]}}", 
+        "@{update_def.policy_servers}");
+  
+    "${sys.inputdir}/${${manifest_file[${i}]}}"
+      handle     => "inputs_and_modules_files_inputs_permissions",
+      comment    => "Promise file perms",
+      perms      => mog( "600", "root", "root" );
+
+    "${sys.workdir}/modules/${update_def.modules}"
+      handle     => "inputs_and_modules_files_modules_download",
+      comment    => "Update modules",
+      ifvarclass => "policy_server|am_policy_hub",
+      perms      => mog( "700", "root", "root" ),
+      copy_from  => secure_cp(
+        "${update_def.modules_path}/${update_def.modules}",
+        "@{update_def.policy_servers}" );
+
+  reports:
+
+    DEBUG::
+
+      "DEBUG: Download file ${manifest[${i}][0]}"
+        if => "download_${manifest_file_canon[${i}]}.restart_cfengine";
+      "DEBUG: Failed to download ${manifest[${i}][0]}"
+        if => "download_${manifest_file_canon[${i}]}.!restart_cfengine";
+}
