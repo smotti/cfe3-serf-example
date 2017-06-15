@@ -13,7 +13,8 @@ my $dir  = '/var/cfengine/masterfiles';
 my $file = '/var/cfengine/masterfiles/manifest.txt';
 my %manifest;
 
-my $allowed_input_files = qr/\.(cf|tmp|txt|json|csv|mu|mustache|py|service|conf|crt|key|sh|pem|timer)$/;
+#my $allowed_input_files = qr/\.(cf|tmp|txt|json|csv|mu|mustache|py|service|conf|crt|key|sh|pem|timer)$/;
+my $allowed_input_files = qr/.*$/;
 
 # Get command options and switches
 GetOptions (

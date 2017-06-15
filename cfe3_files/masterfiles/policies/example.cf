@@ -19,6 +19,7 @@ bundle common example
       slist   => {
         "${roles}/common/main.cf",
         "${roles}/loadbalancer/main.cf",
+        "${roles}/app/main.cf",
         };
     "bundles"
       comment => "List of policy bundles to evaluate",

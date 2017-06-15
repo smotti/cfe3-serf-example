@@ -42,6 +42,8 @@ bundle agent example_loadbalancer_nginx
         string  => canonify("${nginx_conf[dest]}");
       "cngx_lb_conf"
         string  => canonify("${nginx_lb_conf[link]}");
+      "cngx_lb_cfg_dest"
+        string  => canonify("${nginx_lb_conf[dest]}");
       "csvc"
         string  => canonify("${service}");
       "cpkg"
@@ -52,7 +54,7 @@ bundle agent example_loadbalancer_nginx
       "app_srv_alive_str"
         string => format("'%S'", app_srv_alive);
       "filter"
-        string => "'.[] | {ips: [.ip]}'";
+        string => "'{ips: [ .[] | .ip ]}'";
       "app_servers"
         data => parsejson(
           execresult("echo ${app_srv_alive_str} | ${def.jq} ${filter}", "useshell"));
@@ -65,7 +67,8 @@ bundle agent example_loadbalancer_nginx
       comment => "Define if any config file changed",
       or      => {
         classmatch(".*_file_copy_.*_${cngx_conf}_repaired"),
-        classmatch(".*_file_sym_link_.*_${cngx_lb_conf}_repaired"),
+        classmatch(".*_file_sym_link_${cngx_lb_conf}_repaired"),
+        classmatch(".*_file_edit_template_.*${cngx_lb_cfg_dest}_repaired"),
       };
 
   methods:
@@ -88,6 +91,12 @@ bundle agent example_loadbalancer_nginx
           ${nginx_lb_conf[dest]},
           ${nginx_lb_conf[method]},
           @{app_servers}, 
+          ${this.bundle}
+        );
+      "ensure loadbalancer vhost is enabled"
+        usebundle => va_file_sym_link(
+          ${nginx_lb_conf[dest]},
+          ${nginx_lb_conf[link]},
           ${this.bundle}
         );
       "ensure default vhost is disabled"

@@ -10,6 +10,7 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.define :loadbalancer do |p|
+    p.vm.network "forwarded_port", guest: 80, host: 8080
     p.vm.network "private_network", ip: "172.28.128.4"
     p.vm.hostname = "loadbalancer"
     p.vm.provider "virtualbox" do |vb|
