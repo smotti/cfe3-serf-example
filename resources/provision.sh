@@ -7,7 +7,8 @@ export DEBIAN_FRONTEND=noninteractive
 INSTALL='apt-get install --no-install-recommends -y'
 
 # AWS CLI tool is used by cfengine to sync masterfiles from AWS S3
-$INSTALL awscli
+$INSTALL python3-pip libyaml-dev
+pip3 install awscli
 
 # AWS CLI configuration
 if [[ ! -d /root/.aws ]]; then
@@ -16,7 +17,7 @@ fi
 
 cat > /root/.aws/config <<EOF
 [default]
-region=ap-northeast-1
+region=us-west-1
 output=json
 EOF
 
@@ -46,10 +47,10 @@ if [[ ! -e /var/cfengine/inputs/update.cf ]]; then
 fi
 
 # Copy CFE3 files from host
-cp -R /vagrant/cfe3_files/* /var/cfengine/.
+cp -R /vagrant/cfe3_files/{masterfiles,modules} /var/cfengine/.
 
 # Update masterfiles
-#cf-agent -KI -D DEBUG -f update.cf
+cf-agent -KI -D DEBUG -f update.cf
 
 # Provision box
 cf-agent -KI -D DEBUG

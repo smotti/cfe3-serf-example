@@ -83,7 +83,7 @@ bundle agent example_loadbalancer_nginx
         usebundle => va_file_copy_local(
           ${nginx_conf[src]}, ${nginx_conf[dest]}, ${this.bundle});
       "ensure loadbalancer config"
-        usebundle => va_file_edit_template_with_date(
+        usebundle => va_file_edit_template_with_data(
           ${nginx_lb_conf[src]},
           ${nginx_lb_conf[dest]},
           ${nginx_lb_conf[method]},

@@ -76,6 +76,18 @@ body classes if_notkept(x)
   repair_timeout  => { "${x}" };
 }
 
+body file_select all
+{
+  leaf_name   => { ".*" };
+  file_result => "leaf_name";
+}
+
+body file_select by_name(names)
+{
+  leaf_name   => { @{names} };
+  file_result => "leaf_name";
+}
+
 body file_select not_tools
 {
   path_name   => { "/var/cfengine/inputs/((?!tools).)*/.*" };

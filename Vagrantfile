@@ -4,17 +4,17 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "debian/contrib-jessie64"
   config.vm.provision "shell" do |s|
-    s.path = "resources/vagrant_box.sh"
-    s.env = { "ACCESS_KEY_ID" => ENV['ACCESS_KEY_ID'],
-              "SECRET_ACCESS_KEY" => ENV['SECRET_ACCESS_KEY'] }
+    s.path = "resources/provision.sh"
+    s.env = { "ACCESS_KEY_ID" => ENV['AWS_ACCESS_KEY_ID'],
+              "SECRET_ACCESS_KEY" => ENV['AWS_SECRET_ACCESS_KEY']}
   end
 
-  config.vm.define :load_balancer do |p|
+  config.vm.define :loadbalancer do |p|
     p.vm.network "private_network", ip: "172.28.128.4"
-    p.vm.hostname = "load-balancer"
+    p.vm.hostname = "loadbalancer"
     p.vm.provider "virtualbox" do |vb|
       vb.memory = "256"
-      vb.name = "load-balancer"
+      vb.name = "loadbalancer"
       vb.cpus = "1"
     end
   end

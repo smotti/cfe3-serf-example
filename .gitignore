@@ -1,0 +1,4 @@
+.*.sw*
+.vagrant/
+env_vars
+cfe3_files/masterfiles/local_files/common/usr_local_bin_serf

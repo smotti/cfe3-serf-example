@@ -4,18 +4,10 @@ bundle agent cfe_internal_update_from_repository
 
     "purpose" string => "Pull new masterfiles first from remote repository";
 
-  vars:
-
-    !dev_env::
-      "args" string => "prod";
-
-    dev_env::
-      "args" string => "dev";
-
   commands:
 
     "${update_def.masterfiles_update_script}"
-      args    => "${args}",
+      args    => "${update_def.masterfiles_update_script_args}",
       classes => u_kept_successful_command_results(
         "bundle", "masterfiles_deploy");
 

@@ -58,6 +58,10 @@ bundle common update_def
       "masterfiles_update_script"
         comment => "Script to use to pull masterfiles from remote repository",
         string  => "${sys.inputdir}/tools/update_masterfiles.sh";
+      "masterfiles_update_script_args"
+        comment => "The script that comes with this example takes an AWS S3
+          bucket as it's first argument",
+        string  => "cfe3-serf-example";
       "modules_path"
         comment => "Where to find modules on the policy server",
         string  => "${sys.workdir}/modules";

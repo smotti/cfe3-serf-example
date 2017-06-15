@@ -19,9 +19,15 @@ bundle agent cfe_internal_update_workflow
 {
   files:
 
-    "${sys.inputdir}/tools/${def.tools}"
-      comment => "Ensure tools are executable",
-      perms   => mog("700", "root", "root");
+    "${sys.inputdir}/tools"
+      comment     => "Ensure tools are executable",
+      file_select => by_name(@{def.tools}),
+      perms       => mog("755", "root", "root");
+    "${sys.workdir}/modules"
+      comment      => "Ensure modules are executable",
+      perms        => mog("755", "root", "root"),
+      depth_search => recurse("inf"),
+      file_select  => all;
 
   methods:
 
