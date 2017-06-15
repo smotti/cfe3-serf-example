@@ -1,0 +1,66 @@
+body file control
+{
+  inputs => { "${example.roles}/web/main.cf" };
+}
+
+bundle agent example_app
+{
+  vars:
+
+    "web_server_cfg"
+      data    =>
+        '[{"src": "${def.local_files}/app_server/etc_nginx_sites_available_myapp",
+          "dest": "/etc/nginx/sites-available/myapp",
+          "link": "/etc/nginx/sites-enabled/myapp"}]';
+    "dir_www"
+      comment => "Place to copy myapp_files",
+      string  => "/srv/www/myapp";
+    "myapp_files"
+      comment => "Myapps www files",
+      data    =>
+        '[{"src": "${def.local_files}/app_server/srv_www_myapp_index_html.mus",
+           "dest": "${dir_www}/index.html",
+           "method": "mustache"}]';
+    "mf"
+      slist => getindices("myapp_files");
+    "cvcfg"
+      string => canonify(${vhost_cfg[dest]});
+
+  methods:
+
+    "create dir_www"
+      comment   => "Ensure that ${dir_www} is present",
+      usebundle => va_file_create("${dir_www}/.", "${this.bundle}");
+    "set dir_www perms"
+      comment   => "Set proper dir permissions",
+      usebundle => va_file_perms(
+        "${dir_www}", "2770", "www-data", "www-data", "${this.bundle}"
+      );
+    "render myapp_files"
+      usebundle => va_file_edit_template(
+        "${myapp_files[${mf}][src]}",
+        "${myapp_files[${mf}][dest]}",
+        "${myapp_files[${mf}][method]}",
+        "${this.bundle}"
+      );
+    "set myapp files perms"
+      usebundle => file_perms_og(
+        "${myapp_files[${mf}][dest]}", "www-data", "www-data"
+      );
+    "web server"
+      comment   => "Install nginx as webserver and configured it for myapp",
+      usebundle => example_web_server("@{web_server_cfg}", "");
+}
+
+
+bundle agent file_perms_og(file, owner, group)
+{
+  meta:
+
+    "purpose" string => "Set owner and group of file";
+
+  files:
+
+    "${file}"
+      perms => og("${owner}", "${group}");
+}

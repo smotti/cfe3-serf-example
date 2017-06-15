@@ -1,0 +1,133 @@
+bundle agent example_web_server(files, tmps)
+{
+  meta:
+
+    "purpose" string => "Ensure selected webserver is present, configured and started";
+
+  vars:
+
+    "common"
+      comment => "A list of common files to fetch from policy hubs",
+      data    =>
+        '[{"src": "${def.local_files}/web_server/nginx/etc_nginx_nginx_conf",
+           "dest": "/etc/nginx/nginx.conf"},
+          {"src": "${def.local_files}/web_server/nginx/etc_nginx_sites_available_status",
+           "dest": "/etc/nginx/sites-enabled/status"}]';
+    "common_tmps"
+      comment => "A list of common templates",
+      data    => '[]';
+
+    any::
+
+      "merged_files"
+        comment => "Merge common files with files passed to the bundle",
+        data    => mergedata("common", "files");
+      "merged_tmps"
+        comment => "Merge common_tmps with tmps passed to the bundle",
+        data    => mergedata("common_tmps", "tmps");
+
+  methods:
+
+    "use nginx"
+      comment   => "Use nginx as the web server",
+      usebundle => example_web_server_nginx(@{merged_files}, @{merged_tmps});
+}
+
+
+bundle agent example_web_server_nginx(files, tmps)
+{
+  meta:
+
+    "purpose" string => "Ensure nginx is present, configured and started";
+
+  vars:
+
+    debian::
+
+      "package"
+        comment => "Package name for nginx as listed by package manager",
+        string  => "nginx-light";
+      "service"
+        comment => "Name of the service",
+        string  => "nginx";
+      "process"
+        comment => "Process regex for systems processes table",
+        string  => ".*/usr/sbin/nginx.*";
+      "f"
+        comment => "Index of files data struct",
+        slist   => getindices("files");
+      "t"
+        comment => "Index of tmps data struct",
+        slist   => getindices("tmps");
+  
+      "cfiles[${f}]"
+        comment => "Canonified string of the files dest",
+        string  => canonify("${files[${f}][dest]}");
+      "clinks[${f}]"
+        string  => canonify("${files[${f}][link]}");
+      "ctmps[${t}]"
+        comment => "Canonified string of the tmps dest",
+        string  => canonify("${tmps[${t}][dest]}");
+      "csvc"
+        string  => canonify("${service}");
+      "cpkg"
+        string  => canonify("${package}");
+
+  classes:
+
+    "restart_webserver"
+      comment => "Define if any config file changed",
+      or      => {
+        classmatch("va_file_copy_local_${cfiles[${f}]}_repaired"),
+        classmatch("va_file_edit_template_${ctmps[${t}]}_repaired"),
+        classmatch("va_file_sym_link_${clinks[${f}]}_repaired"),
+      };
+
+  methods:
+
+    debian::
+
+      "check package"
+        comment   => "Check if package is already present",
+        usebundle => va_package_verify("${package}", "${this.bundle}");
+      "add package"
+        comment    => "Ensure ${package} is present",
+        classes    => if_ok("so_role_web_server_nginx_configure"),
+        ifvarclass => "va_package_verify_${cpkg}_failed",
+        usebundle  => va_package_add("${package}", "${this.bundle}");
+      "copy files"
+        usebundle => va_file_copy_local(
+          "${files[${f}][src]}",
+          "${files[${f}][dest]}",
+          "${this.bundle}"
+        );
+      "render files"
+        comment   => "Render files that are based on templates",
+        usebundle => va_file_edit_template(
+          "${tmps[${t}][src]}",
+          "${tmps[${t}][dest]}",
+          "${tmps[${t}][method]}",
+          "${this.bundle}"
+        );
+      "enable vhosts"
+        usebundle => va_file_sym_link(
+          "${files[${f}][dest]}",
+          "${files[${f}][link]}",
+          ${this.bundle});
+      "remove default vhost"
+        comment   => "We don't require the default vhost",
+        usebundle => va_file_remove(
+          "/etc/nginx/sites-enabled/default", "${this.bundle}"
+        );
+      "check process"
+        comment   => "Check if ${service} is started",
+        usebundle => va_process_check(
+          "${process}", "restart_webserver", "${this.bundle}"
+        );
+    
+    restart_webserver::
+
+      "start/restart web server"
+        comment   => "Start/Restart web server ${service}",
+        usebundle => va_service_restart("${service}", "${this.bundle}");
+}

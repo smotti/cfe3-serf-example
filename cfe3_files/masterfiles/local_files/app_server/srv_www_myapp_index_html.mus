@@ -1,0 +1,5 @@
+<html>
+<body>
+  Hello World! I'm {{vars.sys.ipv4[eth1]}}
+</body>
+</html>
