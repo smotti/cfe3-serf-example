@@ -62,13 +62,13 @@ bundle agent example_loadbalancer_nginx
         string => format("%S", app_servers);
 
   classes:
-
+# file_edit_template_with_data_etc_nginx_sites_available_lb_repaired
     "restart_loadbalancer"
       comment => "Define if any config file changed",
       or      => {
         classmatch(".*_file_copy_.*_${cngx_conf}_repaired"),
         classmatch(".*_file_sym_link_${cngx_lb_conf}_repaired"),
-        classmatch(".*_file_edit_template_.*${cngx_lb_cfg_dest}_repaired"),
+        classmatch(".*_file_edit_template_with_data${cngx_lb_cfg_dest}_repaired"),
       };
 
   methods:
