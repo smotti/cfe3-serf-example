@@ -6,6 +6,8 @@ related files from any source other than a CFE3 policy hub. As an example for
 this a `masterfiles/tools/update_masterfiles.sh` script is provided that syncs
 files from AWS S3.
 
+For more information see the [wiki](https://github.com/smotti/cfe3-serf-example/wiki).
+
 # Requirements
 
 * Virtualbox
